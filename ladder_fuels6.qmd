@@ -16,7 +16,7 @@ editor_options:
 ```{r get.data, include=FALSE}
 .libPaths("C:/Dan/RPackages")
 
-knitr::opts_chunk$set(echo = FALSE, root.dir = "c:/Dan/_Remote_projects/ccp_lf/files")
+knitr::opts_chunk$set(echo = FALSE, root.dir = "c:/Dan/_Remote_projects/LadderFuels2")
 
 rm(list=ls())
 .libPaths("C:/Dan/RPackages")
@@ -27,17 +27,16 @@ require(ggplot2)
 require(lubridate)
 require(forcats)
 
-load(file='./mcF.rda')
-load(file='./wbmc5.rda')
-load(file='./ISI.rda')
+load(file='./files/mcF.rda')
+load(file='./files/wbmc5.rda')
+load(file='./files/ISI.rda')
 
-#get fd4 from cfi_process
-#fd4 <- read.csv('./fire_data_current.csv') %>%
-#  mutate(CFI2=factor(CFI, labels=c('Surface', 'Crown')))
-fd4 <- read.csv('c:/Dan/_Remote_projects/ccp-lf/files/fire_data_oct2023.csv') %>%  mutate(CFI2=factor(CFI1, labels=c('Surface', 'Crown')))
+#get fd 
+fd4 <- read.csv('./files/fire_data_2026.csv') %>%  
+  mutate(CFI2=factor(CFI1, labels=c('Surface', 'Crown')))
 
 #Deciduous data
-d1 <- read.csv('c:/Dan/_Remote_projects/ccp-lf/files/fire_data_d1_oct2023.csv')
+d1 <- read.csv('./files/fire_data_d1_apr2024.csv')
 
 ```
 
@@ -51,8 +50,7 @@ fd.all <- bind_rows(fd4 %>% select(
   d1 %>% select(num:RH, Grass.Cure) %>%
     mutate(Date=ymd(Date)))  
 
-#setwd('c:/Dan/_Remote_projects/ccp-lf')
-
+#assign project codes - Sharpsand
 sharp <- filter(fd4, str_detect(ExpProject, "Sharpsand IM")) %>% pull(num)  #original Sharpsand Immature stands only
 sharp.th <- filter(fd4, str_detect(ExpProject, "Sharpsand TH")) %>% pull(num)
 sharp.sm <- filter(fd4, str_detect(ExpProject, "Sharpsand SM")) %>% pull(num)
@@ -66,14 +64,14 @@ sh.fires0 <- filter(fd4, num %in% c(sharp, sharp.th, sharp.sm)) %>%
            num %in% sharp ~'Imm',
            num %in% sharp.th ~'Thin',
            num %in% sharp.sm ~'Semi-M' ),
-         Plot=str_extract(fire, '\\d+') %>% as.integer) #extract num. from string
+         Plot=str_extract(fire, '\\d+') %>% as.integer) #extract plot num. from string
 
 sh.fires1 <- mutate(rowwise(sh.fires0), 
                     MC.SA2=wbmc5(ffmc=FFMC, dmc=DMC, stand=4, 
                                  density=2, season=MC.SA_season)) 
                 #MC.SA2 assumes density of 2 for all
                       
-#alternate isi, using mcSA and wind speed:
+#Calculate isi.sa, using mcSA and wind speed:
 isi.mcsa <- function(mc, ws) {
   #m = 147.2*(101-ffmc)/(59.5+ffmc)  #original mc from FFMC (mcF) formula
   f_w = exp(0.05039*ws)
@@ -93,241 +91,19 @@ sh.fires <- mutate(rowwise(sh.fires1),
 ### [SROS models]
 
 ```{r sros, include=FALSE}
+#get models from sROS project
+m9 <- load('./files/sros-m9.rda')
+m12 <- load('./files/sros-m12.rda')
+m13 <- load('./files/sros-m13.rda')
+m14 <- load('./files/sros-m14.rda')
+m16 <- load('./files/sros-m16.rda')
+m17 <- load('./files/sros-m17.rda')
+m18 <- load('./files/sros-m18.rda')
+m20 <- function(ws) {0.2*ws}
 
-#original ccp (2019) sf formula
-sros.st <- function(isi) {
-  0.6308 + 0.056*isi + 0.0086*isi^2
-}
-
-
-#surface fires - extract all CFI1==0, calculate isi.m
-s.fires <- mutate(rowwise(fd.all), 
-                  isi.m=isi.mcsa(mc=MC.SA, ws=ws)) %>% #get ISI using MC.SA
-  filter(CFI1==0) %>% 
-  mutate(FT=as.factor(case_when(
-           str_detect(ExpProject, 'D1') ~ 'Decid',
-           str_detect(ExpProject, 'Dewdrop') ~ 'PPDF',
-           TRUE ~ 'Con'))
-         ) %>%
-  ungroup() %>% as.data.frame()
- 
-#Add FBP database missing VW fires: 2 C4, 2 C5
-s.miss0 <- data.frame(num=122:125, fire=c('PNFI #1 13 yr ONT', 
-                                          'PNFI #2 12 yr ONT', 
-                                         'PNFI RW #1-41-2', 'Carp Lk PNFI WF QC'),
-                     CFI1=0, CFI2='Surface', Fire.type='S', 
-                     ROS=c(7.6, 4.3, 3, 7.5),
-                     SFC=c(1.6, 0.59, 0.3, 0.9), #only 0.59 was meaasured
-      #Estimated SFC for 3/4 obs: C4 est: 1.64 (BUI 57); C5 est: 0.28 (BUI 25), 0.85 (BUI 45)
-                     CFC=c(0, 1.0, 0, 0), 
-                     Date=c('1977-05-19', '1976-08-04', '1976-05-10',
-                            '1963-07-03') %>% ymd(),
-                     ws=c(19, 10, 18, 25), FFMC=c(91.7, 89.9, 90.4, 90.7), 
-                     ISI=c(14.2, 7, 11.2, 16.7), DMC=c(57, 26, 20, 45), 
-      DC=c(107, 276, 86, 81), 
-                     BUI=c(57, 42, 25, 45), 
-                     MC.SA_season=c(1, 2, 1, 2), MC.SA_dens=2, 
-      MC.SA_stand=4, FT='Con') #consider all 4 to be pine stands (conifer type)
-
-#with ISI.mcsa values for the first two C4 PNFI fires
-s.miss <- mutate(rowwise(s.miss0), 
-                 MC.SA=wbmc5(FFMC, DMC, MC.SA_stand, MC.SA_dens, MC.SA_season),
-                 isi.m=isi.mcsa(mc=MC.SA, ws=ws)) %>%
-  as.data.frame() 
-  
-
-s.fires2 <- bind_rows(s.fires, s.miss)
-
-#Original unaltered conifer SF only
-s.fires.con <- filter(s.fires2, FT!='Decid') 
-
-#conifer-only isi.m^2 ROS model
-con.lm <- lm(data=s.fires.con, formula=ROS~I(isi.m^2)-1)
-
-#prediction function for simple lm using isi.m
-con.mod <- function(isim) {
-  predict(con.lm, newdata=list(isi.m=isim))
-}
-
-#Noted - fires with some torching seem to be anomalous
-#Exceptions: fires with torching, CFC >1
-except <- filter(s.fires, CFC > 0.1)
-
-#show exceptions, other issues
- ggplot(s.fires, aes(x=ISI, y=ROS)) + 
-  geom_point() + geom_point(data=except, shape=21, size=4)
-
-#filter out fires with CFC; somewhat anomalous
-#first convert all NA CFC values to 0
-s.fires3 <- s.fires2 %>% 
-  mutate(CFC=ifelse(is.na(CFC), 0, CFC)) %>%
-            filter(CFC <= 0.1)
-
-#convert ROS to presumed cured grass value (half-grass influence)
-#Should work for cf=100 and cf=other (e.g. 90%)
-c7.fullcuring <- 90  #
-fc.cf <- 0.176 +0.02 * (c7.fullcuring-58.8)
-
-s.fires.mod <- s.fires3 %>%
-  mutate(CF=ifelse(Grass.Cure > 58.8, 0.176+0.02 * (Grass.Cure-58.8), #calculate curing
-                   0.005 * exp(0.061 * Grass.Cure)), #'else' statement for low curing vals
-         ROS=ifelse(is.na(Grass.Cure), ROS,
-                    ROS+ROS*fc.cf*(1/CF)/2)) #actual ROS plus half of 'full curing' ROS if it was all grass
-
-
-#surface fires, with false detrended C7; colour by FT
-#with isi.m squared model and linear (con.mod) - ***exploratory
-ggplot(s.fires.mod %>% filter(!is.na(SFC)), 
-       aes(x=isi.m, y=ROS)) +  
-  geom_point(aes(colour=FT, size=SFC)) +    
-  stat_smooth(method=lm, formula=y~I(x^2)-1, #same as sros.isim2.mod
-              se=FALSE, colour='black') +    
-#  geom_point(data=s.fires.mod %>% filter(FT=='PDF'), shape=21, size=4) +
-  stat_smooth(data=s.fires.con, method=lm, 
-              formula=y~x-1, se=FALSE, colour='gray')
-#Add dewdrop fires again untransformed
-
-#Shown using ISI ***exploratory
-ggplot(s.fires.mod %>% filter(!is.na(SFC)), 
-       aes(x=ISI, y=ROS)) +  
-  geom_point(aes(colour=FT, size=SFC)) +    
-  stat_smooth(method=lm, formula=y~I(x^2)-1, #same as sros.isi2.mod
-              se=FALSE, colour='black') +    
-#  geom_point(data=s.fires.mod %>% filter(FT=='PDF'), shape=21, size=4) +
-  stat_smooth(data=s.fires.con, method=lm, 
-              formula=y~x-1, se=FALSE, colour='gray') 
-
-
-#So far these models involve - 
-# - Cutting out data with CFC > 1
-# - 'Detrending' PIPO fires to simulate 100% grass curing, half
-# - including substantial percentage of D1 fires
-
-#linear model using ISI^2
-sros.ISI2.mod <- lm(ROS ~ I(ISI^2)-1, data=s.fires.mod)
-#r^2=0.7217 with s.fires3
-#r^2=0.690 with s.fires.mod
-
-#lm using isi.m^2
-sros.isim2.mod <- lm(ROS ~ I(isi.m^2)-1, data=s.fires.mod)
-#r^2=0.708 with s.fires2
-#r^2=0.766 with s.fires.mod
-
-#lm using isi.m AND SFC - best simple model overall
-sros.isim2SFC.mod <- lm(ROS ~ I(isi.m^2) + SFC-1, data=s.fires.mod)
-#r^2=0.749 with s.fires2
-#r^2=0.807 with s.fires.mod
-
-#similar model with ISI (sros.ISI2SFC.mod) is also good, but not as good
-sros.ISI2SFC.mod <- lm(ROS ~ I(ISI^2) + SFC - 1, data=s.fires.mod)
-#r^2=0.7407
-
-#prediction functions
-sros.lin <- function(ws) {
-  predict(sros.lin.mod, newdata=list(ws=ws))
-}
-
-#nls model and prediction function: ax^b format
-sf.axb.isi <- nls(data=s.fires.mod, formula= 
-               ROS ~ a * ISI^b, start=list(a=1, b=2))
-
-sf.axbisi.fun <- function(isi) {
-  predict(sf.axb.isi, newdata=list(ISI=isi))
-}
-
-
-#fake data for lines - isim2SFC / IsaSFC model; fros1 is at SFC=1, fros2 is at SFC=2
-#also ISI2SFC model and 
-f.sfires0 <- data.frame(fisim=seq(0:30), fsfc1=1, fsfc2=2)
-f.sfires <-mutate(rowwise(f.sfires0),
-                       fros1=predict(sros.isim2SFC.mod, 
-                                     newdata=list(isi.m=fisim, SFC=fsfc1)),
-                       fros2=predict(sros.isim2SFC.mod, 
-                                     newdata=list(isi.m=fisim, SFC=fsfc2)))
-
-#sigmoidal curve like FBP; try c6s to start
-#then vary b and c params
-c6s <- function(isi) {
-  ros=30 * (1-exp(-0.08*isi))^3
-  return(ros)
-}
-
-#vw 1993 surface model for c4 stands
-sros.vw <- function(isi) {
- 20*(1-exp(-0.2*isi))^5 
-}
-
-
-#fit Chapman-Richards function to surface fire data
-#This will be prediction model going forward
-sf.cr.isim <- nls(data=s.fires.mod, formula= 
-               ROS ~ 25 * (1-exp(-b*isi.m))^c, start=list(b=0.08, c=3))
-
-#just need to make a function from the coefficients
-sf.crisim.fun <- function(isi.m) {
-  b=summary(sf.cr.isim)$coefficients[1]
-  c=summary(sf.cr.isim)$coefficients[2]
-  ros=25 * (1-exp(-b*isi.m))^c
-  return(ros)
-}
-
-#Using ISI
-sf.cr.isi <-nls(data=s.fires.mod, formula= 
-               ROS ~ 25 * (1-exp(-b*ISI))^c, start=list(b=0.1, c=3))
-
-#CR nls function using ISI
-sf.crisi.fun <- function(isi) {
-  b=summary(sf.cr.isi)$coefficients[1]
-  c=summary(sf.cr.isi)$coefficients[2]
-  ros=25 * (1-exp(-b*isi))^c
-  return(ros)
-}
-
-#Add function for ISI2SFC model
-sf.isi2sfc.fun <- function(isi, sfc) {
-  b1=summary(sros.ISI2SFC.mod)$coefficients[1]
-  b2=summary(sros.ISI2SFC.mod)$coefficients[2]
-  return(b1*(isi^2) + b2*sfc)
-}
-
-#plotted data and best model; gray line is sros.isim2SFC.mod model at SFC=1.4
-sf.isim.graph <- ggplot(s.fires.mod %>% filter(!is.na(SFC)), 
-       aes(x=isi.m, y=ROS)) +  
-  geom_point(aes(colour=FT, size=SFC)) +    
-  #geom_point(data=s.fires.mod %>% filter(FT=='PDF'), shape=21, size=4) +
-  geom_line(data=f.sfires, aes(x=fisim, y=fros1), colour='gray') + #IsaSFC model
-  stat_function(fun=sf.crisim.fun) +
-#  stat_function(fun=c6s, color='green') +  #can't use VW models with isi.mcsa
-#  stat_function(fun=sros.vw, color='turquoise') +
-#  geom_text(x=7, y=sros.vw(7)+3, label='VW93') +
-#  geom_text(x=21, y=c6s(21)-1, label='C6s') +
-  geom_text(x=28, y=sf.crisim.fun(28)-2, label='CR_ISI.sa') +
-  geom_text(x=28, y=predict(sros.isim2SFC.mod, 
-            newdata=list(isi.m=28, SFC=1.4))+3, 
-            label='IsaSFC') +
-  theme_classic()
-
-sf.isim.graph
-
-#Graph with vw functions, ISI
-sf.isi.vw.graph <- ggplot(s.fires.mod %>% filter(!is.na(SFC)), 
-       aes(x=ISI, y=ROS)) + 
-  geom_point(aes(colour=FT, size=SFC)) +    
-  #geom_point(data=s.fires.mod %>% filter(FT=='PDF'), shape=21, size=4) +
-  #geom_line(data=f.sfires, aes(x=fisim, y=fros1), colour='gray') + #IsaSFC model
-#  stat_function(fun=sf.axbisi.fun, color='grey') +
-  stat_function(fun=sf.crisi.fun, color='black') +
-#  stat_function(fun=c6s, color='green') +  #can't use VW models with isi.mcsa
-  stat_function(fun=sros.vw, color='turquoise') +
-  geom_text(x=7, y=sros.vw(7)+3, label='VW93') +
- # geom_text(x=21, y=c6s(21)-1, label='C6s') +
-  geom_text(x=20, y=sf.crisi.fun(20)-1, label='CR_ISI') +
-  theme_classic()
-
-sf.isi.vw.graph
 ```
 
-### [VW.lf mods]
+### [VW.lf mods and lf function fc.se]
 
 ```{r vw.lf mods, include=FALSE}
 #Vw crown fire model-critical SFC
@@ -338,27 +114,27 @@ vw.sfc <- function(fmc=100, z, ros) {
   #Byram59
   sfc_0 = I_0/(300*ros)
   return(sfc_0)
-  #critical sfc for crowning
-  #use ros from surface ros model (VW or Perrakis 2020)
+  #critical sfc for crowning; needs ROS input
 }
 
-#VW model - critical intensity
+#VW model - critical surface intensity for crowning
 vwi <- function(fmc=100, z) {
   h = 460+25.9 * fmc
   I_0 = (0.01*h*z)^1.5
   return(I_0)
 }
 
-#ladder fuel scaling
-#Corrected!
-lf.sfc <- function(zg, cl, fcl) {
+#ladder fuel scaling: surface-equivalent fuel consumption
+#changed from lf.sfc
+fc.se <- function(zg, cl, fcl) {
   #zg is overstory LCBH
-  #Cl is ladder fuel height, or understory fuel centroid
-  fcg=(zg/(zg-cl))^1.5 * fcl
-  return(fcg)
+  #cl is ladder fuel height, or midstory fuel centroid (e.g. crown centroid of
+  #an understory spruce)
+  fc_se=(zg/(zg-cl))^1.5 * fcl
+  return(fc_se)
 }
 
-#write.csv(lf.sfc, file='c:/Dan/_Fire_tools/r_scripts_functions/lf-sfc.rda')
+#save(fc.se, file='c:/Dan/_Fire_tools/rscripts/fc-se.rda')
 
 
 #Assume Sharpsand FSG ~ 4.5 m
@@ -368,18 +144,20 @@ zl.test = 4.5-3.2+(3.2 * 0.5 * 0.5)  #FSG_L
 
 ```
 
-### [Calculate FC_L for Sharpsand]
+### [Calculate FC_L for Sharpsand plots]
 
 ```{r get stand data calculate FC_L}
+#Get original sharpsand plot data - density, snags, treatments - 18 plots, 19 fires (p11 twice)
+#includes IM (ctrl), TH treatments
 sh.full <- read.csv('c:/Dan/_Remote_projects/ccp_git/ccp-cfi/sharp_full.csv') %>%
   mutate(FSG=LCBH) %>%
   select(-c(X, BA, BA.d, LCBH.L)) %>%
   left_join(sh.fires %>% filter(Exp %in% c('Thin', 'Imm')), by='Plot') %>%
   select(-c(fire, Date, num, DC, FWI, CFI2, Exp)) 
 
-#CFL values for dead ladder fuels from Stocks 1987
+#CFL values for dead ladder fuels from Stocks 1987 - IM/ctrl plots only (ones with LF)
 lf.cfl <- c(0.142, 0.073, 0.313, 0.183, 0.133, 0.146, 0.131, 0.131,
-              0.176, 0.182, 0.151, 0.218, 0.084) #p11 twice
+              0.176, 0.182, 0.151, 0.218, 0.084) #p11 twice for 11a, 11b
 
 #crown fuel consumption estimates by fire type
 cfc.p <- c(0.39, 0.49, 0.22, 0.46)
@@ -388,31 +166,33 @@ cfc.s <- c(0, 0, 0.08, 0, 0)
 
 #* 0.815# using woody consumption? use full CFL here I think; 
 #ICFME surface woody consumption was 0.6 (Stocks et al 2004)
-#ALso ICFME: Stocks et al (2004): 70-86% of overstory 0-1 cm roundwood were consumed, with moisture contents from 55.5-90.4 % 
+#Also recall ICFME: Stocks et al (2004): 70-86% of overstory 0-1 cm roundwood were consumed, with moisture contents from 55.5-90.4 % 
 #down woody fuel moisture contents were 6.3-14.5 %
 
 #Although P7, 18 (ctrl) and P8, 9, 16 (th) are surface fires, assume dead snags burn
 dead.cfc.mean <- mean(lf.cfl)
 
-s.ha.ctrl <- filter(sh.full, TRT=='ctrl') %>% pull(s.ha.d)
+s.ha.ctrl <- filter(sh.full, TRT=='ctrl') %>% 
+  pull(s.ha.d) #stems/ha, ctrl stands
 dead.cfl.snag <- mean(lf.cfl*10000/s.ha.ctrl)  #mean snag weight cfl (<1 cm) per stem, from ctrl stands; in kg/stem
 
-lf.cflp16 <- round(6875 * dead.cfl.snag / 10000, 3)  #est. lf.cfl for p16
+lf.cflp16 <- round(6875 * dead.cfl.snag / 10000, 3)  #est. lf.cfl for p16 based on 
+  #num. of snags, mean cfl (< 1 cm) per snag
 
 sh.full$TRT[17] <- 'ctrl'  #assign partly-thinned one to ctrl grp
-
 
 lf.cfl2 <- c(0.142, 0.073, 0.313, 0.183, 0.133, 0.146, 0.131, 0.131,
               0.176, 0.182, 0.151, lf.cflp16, 0.218, 0.084) #added p16
 
+#To here apr15 2026
 #process LF in control/IM stands
 sh.ctrl <- filter(sh.full, TRT=='ctrl') %>% 
   mutate(cfc.d=lf.cfl2,
          cfc.d.stem=cfc.d * 10000/s.ha.d,   #kg/m2*10000 m2/ha/s/ha = kg/stem
          c.l= HT.D * 0.75,  #assume CR of 0.5;
-         sfc.add=lf.sfc(zg=FSG, cl=c.l, fcl=cfc.d), #SFC.2=(z.2/z.1)^1.5 * SFC.1
+         sfc.add=fc.se(zg=FSG, cl=c.l, fcl=cfc.d), #SFC.2=(z.2/z.1)^1.5 * SFC.1
          sfc.add.stem=sfc.add/s.ha.d,
-         sfc.add2=lf.sfc(zg=FSG, cl=HT.D/2, fcl=cfc.d))
+         sfc.add2=fc.se(zg=FSG, cl=HT.D/2, fcl=cfc.d))
 
 
 sh.ctrl2 <- sh.ctrl %>% select(Plot, ISI, isi.m, FSG, SFC, sfc.add, 
@@ -434,9 +214,9 @@ sh.th <- sh.th0 %>%
   mutate(cfc.d.stem=cfc.dstem, #use cfc in ctrl plots to estimate cfc in th plots
          cfc.d=cfc.d.stem * s.ha.d / 10000, #kg * s/ha / 10000m^2/ha to give kg/m^2
          c.l= HT.D * 0.75,  #assume CR of 0.5;
-         sfc.add=lf.sfc(zg=FSG, cl=c.l, fcl=cfc.d),
+         sfc.add=fc.se(zg=FSG, cl=c.l, fcl=cfc.d),
          sfc.add.stem=sfc.add/s.ha.d,
-         sfc.add2=lf.sfc(zg=FSG, cl=HT.D/2, fcl=cfc.d)) 
+         sfc.add2=fc.se(zg=FSG, cl=HT.D/2, fcl=cfc.d)) 
 
 sh.th2 <- sh.th %>% select(Plot, ISI, isi.m, FSG=FSG1, SFC, sfc.add, 
                            sfc.add2, CFI=CFI1) %>% 
