@@ -12,7 +12,7 @@ editor_options:
     wrap: 72
 ---
 
-### [Set environment, get data]
+### \[Set environment, get data\]
 
 ```{r get.data, include=FALSE}
 .libPaths("C:/Dan/RPackages")
@@ -41,7 +41,7 @@ d1 <- read.csv('./files/fire_data_d1_apr2024.csv')
 
 ```
 
-### [Create DFs, isi.mcsa columns]
+### \[Create DFs, isi.mcsa columns\]
 
 ```{r create data.frames, include=FALSE}
 #Combine conifer data with D1
@@ -69,8 +69,14 @@ sh.fires0 <- filter(fd4, num %in% c(sharp, sharp.th, sharp.sm)) %>%
 
 sh.fires1 <- mutate(rowwise(sh.fires0), 
                     MC.SA2=wbmc5(ffmc=FFMC, dmc=DMC, stand=4, 
-                                 density=2, season=MC.SA_season)) 
+                                 density=2, season=MC.SA_season),
+                    MC.SA3=ifelse(FFMC > 92.9, 
+                                  wbmc5(ffmc=FFMC, dmc=DMC, stand=4, 
+                                 density=2, season=MC.SA_season), 
+                                 wbmc5(ffmc=FFMC, dmc=DMC, stand=4,
+                                       density=3, season=MC.SA_season))) 
                 #MC.SA2 assumes density of 2 for all
+                #MC.SA3 assumes dens of 3 for all
                       
 #Calculate isi.sa, using mcSA and wind speed:
 isi.mcsa <- function(mc, ws) {
@@ -84,12 +90,13 @@ isi.mcsa <- function(mc, ws) {
 #main dataframe for threshold analysis - Sharpsand fires
 sh.fires <- mutate(rowwise(sh.fires1), 
                 isi.m=isi.mcsa(mc=MC.SA, ws=ws),  #isi.m uses actual MC.SA
-                isi.m2=isi.mcsa(mc=MC.SA2, ws=ws)) %>% #alternate where all are Dens=2
+                isi.m2=isi.mcsa(mc=MC.SA2, ws=ws),
+                isi.m3=isi.mcsa(mc=MC.SA3, ws=ws)) %>% #alternate where all are Dens=2
   as.data.frame()
 
 ```
 
-### [SROS models]
+### \[SROS models\]
 
 ```{r sros, include=FALSE}
 #get models from sROS project; also need associated models saved
@@ -114,7 +121,7 @@ load('./files/m18-mod.rda')
 
 ```
 
-### [VW.lf mods and lf function fc.se]
+### \[VW.lf mods and lf function fc.se\]
 
 ```{r vw.lf mods, include=FALSE}
 #Vw crown fire model-critical SFC
@@ -155,7 +162,7 @@ zl.test = 4.5-3.2+(3.2 * 0.5 * 0.5)  #FSG_L
 
 ```
 
-### [Calculate FC_L for Sharpsand plots]
+### \[Calculate FC_L for Sharpsand plots\]
 
 ```{r get stand data calculate FC_L}
 #Get original sharpsand plot data - density, snags, treatments - 18 plots, 19 fires (p11 twice)
@@ -251,7 +258,7 @@ sh.th.model <- sh.th %>% select(Plot, ISI, isi.m, FSG=FSG1, SFC, fc.se.th,
 
 ```
 
-###[CFI thresholds and data]
+###\[CFI thresholds and data\]
 
 ```{r CFI Thresholds for IM TH SM plots}
 #Define levels for Sharp trts:
@@ -259,7 +266,7 @@ trts <- c('Imm', 'Thin', 'Semi-M')
 
 fires.stat <- select(sh.fires, CFI1, CFI2, FFMC, ws, SFC, 
                      MC.SA, ISI, Exp, isi.m, 
-                     isi.m2) %>%
+                     isi.m2, isi.m3) %>%
   mutate(ExpF=factor(Exp, levels=trts)) %>%
   ungroup()
 #%>%  mutate(CFI2=as.numeric(CFI2))
@@ -269,6 +276,9 @@ sh.mod <- glm(CFI1 ~ ISI + ExpF, data=fires.stat, family='binomial') #base model
 
 sh.mod2 <- glm(CFI1 ~ isi.m + ExpF, data=fires.stat, family='binomial') #ISI using MC.SA, density 2 for TH, 3 for others. Works! p < 0.05 for all
 
+sh.mod3 <- glm(CFI1 ~ isi.m3 + ExpF, data=fires.stat, family='binomial')
+#dens3 for all except FFMC > 92.9
+
 #Used sh.mod (ISI) for log. regression graph
 #Use both for threshold values
 
@@ -277,7 +287,7 @@ sh.mod2 <- glm(CFI1 ~ isi.m + ExpF, data=fires.stat, family='binomial') #ISI usi
 
 #which model to use? sh.mod with ISI or sh.mod2 with mc.sa or other
 use.mod <- sh.mod
-use.mod2 <- sh.mod2
+use.mod3 <- sh.mod3
 
 #generate fake data for log. regression graphs
 fdata.IM <- data.frame(fISI=seq(3, 20, by=0.1), fExp='Imm') %>%
@@ -317,13 +327,14 @@ mod2.co<-use.mod2$coefficients
 
 
 # summary(use.mod)  #
-# summary(multcomp::glht(use.mod, 
-#                        multcomp::mcp(ExpF='Tukey')))  #requires Exp as factor
+summary(multcomp::glht(use.mod, 
+                        multcomp::mcp(ExpF='Tukey')))  #requires Exp as factor
 
 
 ```
 
-###[CFI graph]
+###\[CFI graph\]
+
 ```{r Log-CFI graph, define functions}
 #get cf thresholds (p=0.5); see prev. code chunk for derivation
 #With ISI model:
@@ -382,11 +393,152 @@ sh.isi.log <-
 sh.isi.log
 
 ```
+### \[M calculations\]
+
+```{r m.calculations, include=FALSE}
+
+#t-test to compare SFC between treatments
+#t.test(sh.ctrl$SFC, sh.th$SFC)
+#p=0.1409
+
+#m formula
+#M=SFCx(ROS_th - ROS_im)/(ROS_im x FC_se_im)
+
+#FC_se_im; -7 is to avoid duplicating p11
+fc.se.im.mean <- mean(sh.ctrl$fc.se.ctrl[-7])
+
+#solve for M function
+m.function <- function(sfc, ros.th, ros.im, fc.se.im) { 
+  m=sfc*(ros.th-ros.im)/(ros.im*fc.se.im)
+  return(m)
+  #solve for m with IM and TH threshold values
+}
+
+#model list
+#m20%, m12, m16(mc, ws), m18 (FT=con)
+mod.list.isi <- list(m20, m12.conISI, m16.power, m18.agAsy.FT)
+
+#model list, isi.sa models
+#m9(SFC), m13, m17(mcsa, ws)
+mod.list.isim <- list(m9.sros.isim2SFC.mod, m13.conSa, m17.power.sa)
+
+mod.list.all <- list(m20, m12.conISI, m16.power, m18.agAsy.FT,
+                     m9.sros.isim2SFC.mod, m13.conSa, m17.power.sa)
+
+#loop to get ROS estimates
+pred.list <- vector('list', length(mod.list.all))
+
+isi.vals <- c(isi.thresh.im, isi.thresh.th)
+isim.vals <-c(isim.thresh.im, isim.thresh.th)
+ffmc.val <- mean(sh.full$FFMC)  #90.89
+dmc.val <- mean(sh.full$DMC)   #42
+ws.vals <- c(6.6104, 14.881)
+sfc.mean <- mean(sh.full$SFC)  #1.3374
+mcsa.val <- mean(sh.full$MC.SA) #11.16506
+ws.vals.sa <- c(2.724, 16.024)
+
+#maybe just use the ones with ISI & mc/ws?
+Mm20 <- m20(ws.vals) #ok with FFMC 90.89
+Mm12 <- fun.m12(isi.vals) #ok ISI
+Mm16 <- fun.m16(ws=ws.vals, mc=mcF(ffmc.val)) #maybe
+Mm18 <- fun.m18(isi.vals) #ok FT
+
+#nice simple table of ROS, ISI models
+modelMms <- rbind(Mm20, Mm12, Mm16, Mm18) %>%
+  as.data.frame() 
+
+colnames(modelMms) <- c('ROS.im', 'ROS.th')
+
+#If needed, ISI.sa & mc.sa models
+Mm9 <- fun.m9(isim=isim.vals, sfc=c(sfc.mean, sfc.mean))
+Mm13 <- fun.m13(isim=isim.vals)
+Mm17 <- fun.m17(ws=ws.vals.sa, mcsa=mcsa.val)
+
+modelMmsa <- rbind(Mm9, Mm13, Mm17) %>%
+  as.data.frame() 
+
+colnames(modelMmsa) <- c('ROS.im', 'ROS.th')
 
 
-## Simple solutions for modelling surface fire and ladder fuels in Canadian conifer forests
+solve.for.m1 <- mutate(modelMms, 
+                        M=m.function(sfc=1.337, ros.th=ROS.th,
+                              ros.im=ROS.im, fc.se.im=fc.se.im.mean))
+#works!
+#Mean of 4.68
 
-#### 
+solve.for.m2 <- mutate(modelMmsa, 
+                        M=m.function(sfc=1.337, ros.th=ROS.th,
+                              ros.im=ROS.im, fc.se.im=fc.se.im.mean))
+#m17 needs work - think about assumptions and both ws and mc.sa vals
+#maybe just stick with base ISI models here
+
+#equivalent Byram's intensity near crowning threshold:
+
+#actual calculations of M, at long last:
+#replace $sfc.add with $sfc.add2 to use the dead snag centroid (height/2), 
+#rather than height*0.75  
+
+modelMms <- data.frame(ROS.im=NA, ROS.th=NA) %>%
+   
+
+M.estimates <- NULL
+
+#Original CR (0.5) calcs
+for(i in 1:4) {
+  M.estimates[i]=m.function(sfc=sfc.mean, ros.th=modelMms[i])
+}
+
+
+
+
+
+M3isi <- ((mean.sfc * sf.crisi.fun(isi.thresh.th))/
+         sf.crisi.fun(isi.thresh.im) - mean.sfc)/ 
+  mean(sh.ctrl2$sfc.add)
+
+M3isim <- ((mean.sfc * sf.crisim.fun(isim.thresh.th))/
+         sf.crisim.fun(isim.thresh.im) - mean.sfc)/ 
+  mean(sh.ctrl2$sfc.add)
+
+#with LF centroid at H/2 instead of 'crown' centroid:
+M3isi2 <- ((mean.sfc * sf.crisi.fun(isi.thresh.th))/
+         sf.crisi.fun(isi.thresh.im) - mean.sfc)/ 
+  mean(sh.ctrl2$sfc.add2)
+
+M3isim2 <- ((mean.sfc * sf.crisim.fun(isim.thresh.th))/
+         sf.crisim.fun(isim.thresh.im) - mean.sfc)/ 
+  mean(sh.ctrl2$sfc.add2)
+
+#compare M values using different methods
+meanM <- sum(M3isi, M3isim, M3isi2, M3isim2)/4
+
+#another tactic would be to make the case for NO M! (M=1)
+#Maybe ok, some of difference was due to higher SFC in Ctrl/Imm stands
+
+sfc.im <- sh.ctrl2$SFC %>% mean()
+sfc.th <- sh.th2$SFC %>% mean()
+
+#Using isi and isim models, different SFC vals:
+#replace $sfc.add with $sfc.add2 to use the dead snag centroid (height/2), 
+#rather than height*0.75  
+M3isi.diff <- ((sfc.th * sf.crisi.fun(isi.thresh.th))/
+         sf.crisi.fun(isi.thresh.im) - sfc.im)/ 
+  mean(sh.ctrl2$sfc.add)
+
+M3isim.diff <- ((sfc.th * sf.crisim.fun(isim.thresh.th))/
+         sf.crisim.fun(isim.thresh.im) - sfc.im)/ 
+  mean(sh.ctrl2$sfc.add)
+
+#M = 1.3 with ISI mod, 3.3 with isim model
+
+meanM2 <- sum(M3isi, M3isim, M3isi2, M3isim2, M3isi.diff, 
+              M3isim.diff)/6
+
+
+#Table
+mdf <- data.frame()
+
+```
 
 ## Abstract
 
@@ -443,9 +595,9 @@ branches, lichen, small conifers, etc.' located above the surface fuel
 complex, remarking that such fuels needed to be 'present in sufficient
 quantity to intensify the surface fire appreciably as well as to extend
 the flame height'. While the paper describing Van Wagner's model has
-been cited become a classic (\> 1600 citations as of early 2026), methods for
-quantifying the effects of ladder fuels are still lacking nearly 50 years
-later.
+been cited become a classic (\> 1600 citations as of early 2026),
+methods for quantifying the effects of ladder fuels are still lacking
+nearly 50 years later.
 
 Van Wagner's model was originally formulated to solve for critical
 surface intensity ( $I_0$) as follows:
@@ -454,7 +606,7 @@ $$
 I_0=(chz)^{1.5}
 $$
 
-[eq. 1],
+\[eq. 1\],
 
 where $h$ is heat of ignition, $z$ is live crown base height (LCBH), and
 $c$ is a dimensional constant derived empirically. Most modelling
@@ -462,17 +614,22 @@ systems have combined $I_0$ with Byram's [-@byram1959] fireline
 intensity equation in order to solve for critical rate of spread. This
 combination has allowed for linkages with Rothermel's [-@rothermel1972]
 semi-physical surface rate of spread model [e.g. @scott2001;
-@andrews2014], or with empirical ROS functions, such as in the FBP System  [@forestrycanadafiredangergroup1992]. Surprisingly, a simple
+@andrews2014], or with empirical ROS functions, such as in the FBP
+System [@forestrycanadafiredangergroup1992]. Surprisingly, a simple
 algebraic rearranging of the terms of Van Wagner's model allows for a
 useful and powerful estimator applicable to ladder fuels of varying
-heights. Empirical data presently allows for calibration of the theoretical and conceptual linkages between surface and crown fire processes.
+heights. Empirical data presently allows for calibration of the
+theoretical and conceptual linkages between surface and crown fire
+processes.
 
 ### Objective
 
 The objective of this study was to 1) describe a simple theoretical
 framework for analyzing ladder fuel influence in crown fire initiation,
-based on a rearrangement of Van Wagner's (1977) equation; 2) calibrate and evaluate the theoretical equation with field data; and 3) incorporate the ladder fuel function into an empirical operational crown fire model for use with
-measured or estimated fuel structure.
+based on a rearrangement of Van Wagner's (1977) equation; 2) calibrate
+and evaluate the theoretical equation with field data; and 3)
+incorporate the ladder fuel function into an empirical operational crown
+fire model for use with measured or estimated fuel structure.
 
 ### Theoretical model: scaling ladder fuel consumption to the surface
 
@@ -480,8 +637,8 @@ Ladder fuels are defined by their fine texture and intermediate vertical
 position, by definition [@vanwagner1977a; @kilgore1975]. They exist in
 conifer stands between the surface fuels, at $z=0$, and canopy fuels,
 which for our purposes begin at the live canopy base height (LCBH). When
-continuous with the surface fuelbed and ignited by a proximate source (i.e.
-an advancing fireline), the heat flux contribution of these fuels
+continuous with the surface fuelbed and ignited by a proximate source
+(i.e. an advancing fireline), the heat flux contribution of these fuels
 [@melnik2022] is much closer to the canopy base, and therefore much more
 likely to contribute to canopy ignition compared to similar fuel
 quantities at the surface.
@@ -496,8 +653,9 @@ $$
 H \cdot SFC \cdot ROS=(c \cdot h)^{1.5} z^{1.5}  
 $$
 
-[eq. 2], where $H$ is the heat of combustion, $SFC$ is surface fuel consumption,
-$ROS$ is rate of forward spread, and the right side is as in Equation 1.
+\[eq. 2\], where $H$ is the heat of combustion, $SFC$ is surface fuel
+consumption, $ROS$ is rate of forward spread, and the right side is as
+in Equation 1.
 
 This relationship has often been evaluated in terms of identifying
 critical ROS for crown fire initiation [@vanwagner1977a;
@@ -510,7 +668,7 @@ $$
 SFC_0=\frac {(ch)^{1.5} z^{1.5}} {h \cdot ROS} 
 $$
 
-[eq. 3]
+\[eq. 3\]
 
 Critical SFC for crown fire initiation can then be compared between LCBH
 levels, e.g. $z_1$ and $z_2$.
@@ -521,7 +679,7 @@ $$
 {  \left[  \frac {(ch)^{1.5} z_1^{1.5}} {h \cdot ROS} \right] }
 $$
 
-[eq. 4]
+\[eq. 4\]
 
 This also assumes no change in ROS with varying LCBH. Holding all other
 terms constant, we can simplify this to yield a basic relationship
@@ -531,7 +689,7 @@ $$
 SFC_2=(\frac {z_2} {z_1})^{1.5} \cdot SFC_1
 $$
 
-[eq. 5].
+\[eq. 5\].
 
 A practical example helps illustrate the logic of comparing $SFC_0$ at
 two different z values (eq. 3). Using Van Wagner's own empirical heat of
@@ -546,8 +704,8 @@ crowning, as a consequence of the much higher surface fire intensity
 required.
 
 In the case of the consumption of an elevated ladder fuel quantity
-$FC_L$ positioned at certain height above ground $C_L$ (such as the centroid of
-a sapling cohort beneath a live conifer canopy), finding the
+$FC_L$ positioned at certain height above ground $C_L$ (such as the
+centroid of a sapling cohort beneath a live conifer canopy), finding the
 surface-equivalent $FC$ value ($FC_{SE}$) is then a matter of inflating
 its influence due to its elevated position. In this case, z remains the
 normal LCBH for the live canopy and $z-C_L$ can also be considered the
@@ -557,9 +715,9 @@ $$
 FC_{SE}=(\frac {z} {z-C_L})^{1.5} \cdot FC_L ~~, ~~~~~~ z > C_L
 $$
 
-[eq. 6]. Using Equation 6, it becomes possible to estimate the contribution
-of canopy fuel elements and compare them with the surface fuel complex
-in an additive manner.
+\[eq. 6\]. Using Equation 6, it becomes possible to estimate the
+contribution of canopy fuel elements and compare them with the surface
+fuel complex in an additive manner.
 
 We note immediately two fire-related qualifiers. First, this theoretical
 relationship does not account for the obvious structural differences
@@ -597,10 +755,10 @@ One simple approach to the challenge of comparing high porosity ladder
 fuels with low porosity surface fuels is to evaluate the use of a
 multiplier. This would be, in the simplest sense, a value that could be
 used to inflate the value of $FC_L$ in order to bring it closer to
-comparable SFC values. Thus, we might expect $SFC=FC_{SE} \cdot M$ [7],
-with $FC_{SE}$ being the surface-equivalent ladder fuel consumption
-value from eq. 6 and $M$ being the appropriate multiplier for converting
-$FC_L$ to $FC_{SE}$.
+comparable SFC values. Thus, we might expect $SFC=FC_{SE} \cdot M$
+\[7\], with $FC_{SE}$ being the surface-equivalent ladder fuel
+consumption value from eq. 6 and $M$ being the appropriate multiplier
+for converting $FC_L$ to $FC_{SE}$.
 
 Measured and estimated SFC values in Canadian experimental fires ranged
 from 0.2 to 3.8 kg m^-2^ [@perrakis2023]. The value of this multiplier,
@@ -616,28 +774,41 @@ experimental fire data.
 ## 2. Methods
 
 Two separate validation methods were used to evaluate the theoretical
-ladder fuel scaling relationship and calibrate the value of the multiplier M: 1) an expert opinion assessment, and 2) a crown fire threshold model between three treatment types. The relationship was further evaluated within the context of an empirical crown fire model using Canadian experimental fire data, by a sensitivity analysis of model performance with and without ladder fuels and with different values for M. The final step leads to a new concept of crown fire, where flaming transitions between canopy fuel strata can be tested and defined individually. 
-All of these relate to stand level estimates of fuel structure using mean values, which is simple and operationally practical, but may mask significant impacts of within-stand heterogeneity and spatial pattern of fuel arrangement (e.g. clumping, proximity to overstory trees).
+ladder fuel scaling relationship and calibrate the value of the
+multiplier M: 1) an expert opinion assessment, and 2) a crown fire
+threshold model between three treatment types. The relationship was
+further evaluated within the context of an empirical crown fire model
+using Canadian experimental fire data, by a sensitivity analysis of
+model performance with and without ladder fuels and with different
+values for M. The final step leads to a new concept of crown fire, where
+flaming transitions between canopy fuel strata can be tested and defined
+individually. All of these relate to stand level estimates of fuel
+structure using mean values, which is simple and operationally
+practical, but may mask significant impacts of within-stand
+heterogeneity and spatial pattern of fuel arrangement (e.g. clumping,
+proximity to overstory trees).
 
 ### Study area: Sharpsand Creek, Ontario
 
-The validation made use of data from the fire experiments at
-Sharpsand Creek, Ontario. This site and its observations have been
-analyzed in several studies but remain useful for the present purposes.
-As previously described, 27 plots in three separate treatment types were
+The validation made use of data from the fire experiments at Sharpsand
+Creek, Ontario. This site and its observations have been analyzed in
+several studies but remain useful for the present purposes. As
+previously described, 27 plots in three separate treatment types were
 burned between 1974 and 1991 at this site north of Thessalon, Ontario.
 The original unaltered stand (immature: IM) consisted of naturally
-regenerated jack pine following a 1948 wildfire, with dense stocking of a single live cohort along with abundant standing dead stems forming volatile ladder fuels [@walker1975; @stocks1973]. Results from the
+regenerated jack pine following a 1948 wildfire, with dense stocking of
+a single live cohort along with abundant standing dead stems forming
+volatile ladder fuels [@walker1975; @stocks1973]. Results from the
 initial experimental fires (1975-1981) were published by Stocks
 [-@stocks1987] and formed the empirical basis for much of the FBP System
 C-4 fuel type [@forestrycanadafiredangergroup1992]. These observations
 were also analyzed separately by Van Wagner [@vanwagner1993] and used in
 additional fire behaviour studies [@call1997; @albini1986; @cruz2003].
-During the course of the early experiments, it was discovered that 6 of the
-plots had been hand-thinned (TH) in 1960, removing most of the regenerating 
-stems and resulting in much less dense stands compared with the
-'control' IM plots [@stocks1987; B. J. Stocks, personal communication,
-Jan. 2020]. 
+During the course of the early experiments, it was discovered that 6 of
+the plots had been hand-thinned (TH) in 1960, removing most of the
+regenerating stems and resulting in much less dense stands compared with
+the 'control' IM plots [@stocks1987; B. J. Stocks, personal
+communication, Jan. 2020].
 
 In the later fires (1988-1991), stand characteristics indicated
 significant structural changes underway during the intervening years.
@@ -653,19 +824,31 @@ handled these three stand types in various ways. With the IM stands
 included in the C-4 fuel type, the TH plots had been deemed more
 representative of mature pine stands and previously included in the FBP
 System C-3 fuel type, despite similar age, LCBH and site characteristics
-as the IM stands assigned to the C-4 fuel type [@degroot2022]. In later studies, the ladder fuel influence in IM stands was estimated by some authors to act similarly to a reduction of the LCBH; this was based on the logic of reduced distance between surface fuel and continuous canopy fuel caused by the standing dead ladder fuels. This modified LCBH measure was termed the Fuel Strata Gap, equal to 2 m [@cruz2004; @cruz2006; @perrakis2023].
+as the IM stands assigned to the C-4 fuel type [@degroot2022]. In later
+studies, the ladder fuel influence in IM stands was estimated by some
+authors to act similarly to a reduction of the LCBH; this was based on
+the logic of reduced distance between surface fuel and continuous canopy
+fuel caused by the standing dead ladder fuels. This modified LCBH
+measure was termed the Fuel Strata Gap, equal to 2 m [@cruz2004;
+@cruz2006; @perrakis2023].
 
 ### Crowning behaviour and ladder fuel consumption
 
 There is a question of which plots experienced crown fire vs surface
 fire or transitional torching behaviour. In the original Sharpsand
-experiments (1974-1981; IM and TH stands: Stocks 1987; Cruz 1999), fire type was
-identified as 'surface' or 'crown'. In the SM experiments, however,
-fire type was identified as 'surface', 'some torching', 'torching', and
-'crown' [@mcrae2017]. Descriptions in the latter text make it clear that
-'torching' fires experienced behaviour akin to passive crowning, while
-those described as 'some torching' appeared to be near the crowning
-threshold (i.e., primarily surface fires but with \~5-15% crown fraction burned). Following discussions with experimental leaders (BJ Stocks, pers. comm. 2020), the two fires described as 'some torching' were assumed to defined the crowning threshold: fire #16 (ISI=8.1, ROS=3.5 m/min) was considered to be a surface fire observation, while fire #18 (ISI=9.4, ROS=5.1 m/min) was considered a marginal passive crown fire. 
+experiments (1974-1981; IM and TH stands: Stocks 1987; Cruz 1999), fire
+type was identified as 'surface' or 'crown'. In the SM experiments,
+however, fire type was identified as 'surface', 'some torching',
+'torching', and 'crown' [@mcrae2017]. Descriptions in the latter text
+make it clear that 'torching' fires experienced behaviour akin to
+passive crowning, while those described as 'some torching' appeared to
+be near the crowning threshold (i.e., primarily surface fires but with
+\~5-15% crown fraction burned). Following discussions with experimental
+leaders (BJ Stocks, pers. comm. 2020), the two fires described as 'some
+torching' were assumed to defined the crowning threshold: fire #16
+(ISI=8.1, ROS=3.5 m/min) was considered to be a surface fire
+observation, while fire #18 (ISI=9.4, ROS=5.1 m/min) was considered a
+marginal passive crown fire.
 
 The most challenging value for the analysis is the fuel consumption of
 ladder fuels, as this is seldom measured (though sometimes estimated
@@ -678,14 +861,14 @@ For the present calculations, ladder fuel influence was quantified using
 equation 6 to scale the estimated ladder fuel consumption (dead canopy
 fuel \< 1 cm; Stocks 1987) into an equivalent SFC contribution value,
 $SFC_L$. The vertical position of fine standing ladder fuels was assumed
-to be the crown centroid of the mean dead snag crowns, 
+to be the crown centroid of the mean dead snag crowns,
 
-$$C_L=CBH+\frac {height-CBH}{2}$$, 
-[eq. 7] [@perrakis2023] at the stand level, where
-CBH is the mean crown base height of the dead saplings.
+$$C_L=CBH+\frac {height-CBH}{2}$$\[eq. 7\] [@perrakis2023] at the stand
+level, where CBH is the mean crown base height of the dead saplings.
 
 ```{r}
-knitr::include_graphics(path='./files/FSG-snags-crown.png')
+knitr::include_graphics(path='./files/')
+!FSG-snags-crown.png
 ```
 
 *Diagram (not to scale) showing approximate estimation of live crown
@@ -699,10 +882,13 @@ increased using a multiplier, discussed further below.
 
 #### Estimation 1 - expert opinion, Sharpsand Creek (ON)
 
-The first method involved expert opinion from previous studies. As noted above, Cruz et al. [-@cruz2004] noted that the abundant ladder fuels characterizing the Sharpsand Creek, ON IM stands, in the form of standing dead trees (including dead branches, bark flakes, and fine stemwood) amounted to a reduced FSG of 2 m,
-compared to approximately 4 m for the actual LCBH (or z). We used those
-values as a first estimate along with equation 5 to investigate a
-potential value for multiplier M.
+The first method involved expert opinion from previous studies. As noted
+above, Cruz et al. [-@cruz2004] noted that the abundant ladder fuels
+characterizing the Sharpsand Creek, ON IM stands, in the form of
+standing dead trees (including dead branches, bark flakes, and fine
+stemwood) amounted to a reduced FSG of 2 m, compared to approximately 4
+m for the actual LCBH (or z). We used those values as a first estimate
+along with equation 5 to investigate a potential value for multiplier M.
 
 #### Estimation 2 - analyis of crowning thresholds, Sharpsand Creek (ON)
 
@@ -714,8 +900,10 @@ differed primarily by age and treatment, provided the ideal test case
 for assessing threshold crown fire conditions and ladder fuel effects.
 We first used logistic regression to compare the crown fire thresholds
 between treatments. This was initially done using the initial spread
-index (ISI) from the FWI System [@vanwagner1987]; we also tested for thresholds using a stand-adjusted version of the ISI (ISI~SA~), which was simply the ISI
-equation's f(F) function fitted to the MC~SA~ [@perrakis2026].
+index (ISI) from the FWI System [@vanwagner1987]; we also tested for
+thresholds using a stand-adjusted version of the ISI (ISI~SA~), which
+was simply the ISI equation's f(F) function fitted to the MC~SA~
+[@perrakis2026].
 
 We then evaluated the crowning thresholds in terms of critical FC to
 solve for the multiplier effect (M). This involved using Byram's
@@ -752,26 +940,41 @@ eq. 5 using the expert opinion values given in Cruz et al. [@cruz2004;
 
 From eq. 5, we can easily rearrange as follows, assuming SFC_1=SFC_2:
 
-$$\begin{aligned}
+\$\$
+
+\begin{aligned*}
 
 \frac {SFC_2} {SFC_1+FC_L \cdot M} &=(\frac {z_2} {z_1})^{1.5} \\
 M&= \frac {SFC \cdot (z_1-z_2)^{1.5}} {FC_L \cdot z_2^{1.5}} 
-\end{aligned}
-$$
+\end{aligned*}
 
-[eq. 8]. Starting with the approximate LCBH values originally reported for the
-Sharpsand IM stands (*z_1*= 4 m), this value was reduced by 2 m to produce the
-FSG estimate (*z_2*=2 m). The mean estimated *FC_L* of the IM plots was 0.157 kg m^[-2], and the mean SFC was 1.405. Therefore, we solve eq. 8 for our first estimate for M:
+\$\$
+
+\[eq. 8\]. Starting with the approximate LCBH values originally reported
+for the Sharpsand IM stands (*z_1*= 4 m), this value was reduced by 2 m
+to produce the FSG estimate (*z_2*=2 m). The mean estimated *FC_L* of
+the IM plots was 0.157 kg m[^1], and the mean SFC was 1.405. Therefore,
+we solve eq. 8 for our first estimate for M:
+
+[^1]: -2
 
 $$\begin{aligned}
 M
 &=\frac {1.405 \cdot (4-2)^{1.5}} {0.157 \cdot 2^{1.5}} \\
-M&=8.95 \end{aligned}$$ [7]. 
-The same calculation was also completed with more precise values derived from original stand data [@walker1975]. Detailed plot-level analyses [@degroot2022; @perrakis2023] produced mean treatment-level LCBH values of 4.36 m in the IM plots. Solving eq. 8 with *z_1*=4.36 and *z_2*=2.36 (following the assumption of $FSG=z_2=z_1-2$) produces a slightly lower estimate of M=6.990. 
+M&=8.95 \end{aligned}$$ \[7\]. The same calculation was also completed
+with more precise values derived from original stand data [@walker1975].
+Detailed plot-level analyses [@degroot2022; @perrakis2023] produced mean
+treatment-level LCBH values of 4.36 m in the IM plots. Solving eq. 8
+with *z_1*=4.36 and *z_2*=2.36 (following the assumption of
+$FSG=z_2=z_1-2$) produces a slightly lower estimate of M=6.990.
 
 #### 3.2 Crowning thresholds and critical ROS, Sharpsand Creek
 
-The second multiplier estimation method involted the logistic regression between treatments. The full dataset consisted of 27 experimental fires: 14 IM, 5 TH, and 8 SM. The logistic regressions for ISI and ISI_sa showed both ISI/ISI_sa and treatment as significant predictors (⍺=0.05) of crown fire occurrence.   
+The second multiplier estimation method involted the logistic regression
+between treatments. The full dataset consisted of 27 experimental fires:
+14 IM, 5 TH, and 8 SM. The logistic regressions for ISI and ISI_sa
+showed both ISI/ISI_sa and treatment as significant predictors (⍺=0.05)
+of crown fire occurrence.
 
 ###### 3.2.1 Critical ROS for crowning
 
@@ -781,19 +984,31 @@ stands, respectively. In terms of ISI~SA~, the MC~SA~-based spread
 index, the respective thresholds were `r round(isim.thresh.im, 2)` and
 `r round(isim.thresh.th, 2)` for IM and TH stands.
 
-Solving for M also required a surface ROS estimate associated with the crowning
-thresholds in both stand types. We used an ensemble of 5 different recommended sROS models for hemi-boreal stands, using the ISI, ISI_sa, or individual moisture and wind speed variables [@perrakis2026]: M12 (ISI), M13 (ISI_sa), M16, M17, M18 and M20%, the latter being the 'mental arithmetic' model that estimates sROS in conifer stands as 20 % of the open wind speed. While these sROS models suffer somewhat from sparse observations for ISI > \~12, typical crown fire conditions, they are quite credible under conditions approximating our crowning thresholds of ISI/ ISI_sa of \~5-10. Approximate surface fire spread rates of 0.7 – 2.5 m min^-1^ are expected.
+Solving for M also required a surface ROS estimate associated with the
+crowning thresholds in both stand types. We used an ensemble of 5
+different recommended sROS models for hemi-boreal stands, using the ISI,
+ISI_sa, or individual moisture and wind speed variables [@perrakis2026]:
+M12 (ISI), M13 (ISI_sa), M16, M17, M18 and M20%, the latter being the
+'mental arithmetic' model that estimates sROS in conifer stands as 20 %
+of the open wind speed. While these sROS models suffer somewhat from
+sparse observations for ISI \> \~12, typical crown fire conditions, they
+are quite credible under conditions approximating our crowning
+thresholds of ISI/ ISI_sa of \~5-10. Approximate surface fire spread
+rates of 0.7 – 2.5 m min^-1^ are expected.
 
 ##### 3.2.2 Byram's intensity and estimating *M*
 
 We can now use our scaled ladder fuel equation (eq.6) along with
-estimated threshold surface ROS and Byram's fire intensity equation [@byram1959] once again in order to calculate the most likely value for $M$. This calculation assumes that equivalent critical surface intensity values ($I_0$) are required for crowning in the control and thinned stands, both with LCBH of about 4.4 m.
+estimated threshold surface ROS and Byram's fire intensity equation
+[@byram1959] once again in order to calculate the most likely value for
+$M$. This calculation assumes that equivalent critical surface intensity
+values ($I_0$) are required for crowning in the control and thinned
+stands, both with LCBH of about 4.4 m.
 
 In terms of ROS values at the crowning threshold ($ROS_0$) in the Im and
 Th stands, the equivalency is expressed as follows:
 
-$$
-\begin{align*}
+$$\begin{align*}
 I_{0 \cdot Im} &= I_{0 \cdot Th} \\
 h \cdot w_{Im} \cdot ROS_{Im} &= h \cdot w_{Th} \cdot ROS_{Th} \\
 SFC_{Im} \cdot ROS_{0 \cdot Im} &= SFC_{Th} \cdot ROS_{0 \cdot Th} \\
@@ -801,11 +1016,14 @@ SFC_{Im} \cdot ROS_{0 \cdot Im} &= SFC_{Th} \cdot ROS_{0 \cdot Th} \\
 \end{align*}
 $$
 
-Based on eq. 6, $FC_{SE}$ is calculated using ladder fuel structure and estimated consumption of \< 1 cm dead roundwood. In this case, we calculate ladder fuel height ($C_L$) using an estimated crown ratio of 0.5 and cohort heights from
-Walker and Stocks' [-@walker1975] original stand data. Mean dead sapling
-height and \< 1 cm dead consumption ($FC_L$ ) in control stands were 3.49
-m and 0.159 kg m^-2^, resulting in mean $C_L=2.62$ m. $FC_{SE}$ values (eq. 6), ranged from
-0.291 to 1.227 kg m^-2^, with a mean of 0.658 kg m^-2^ .
+Based on eq. 6, $FC_{SE}$ is calculated using ladder fuel structure and
+estimated consumption of \< 1 cm dead roundwood. In this case, we
+calculate ladder fuel height ($C_L$) using an estimated crown ratio of
+0.5 and cohort heights from Walker and Stocks' [-@walker1975] original
+stand data. Mean dead sapling height and \< 1 cm dead consumption
+($FC_L$ ) in control stands were 3.49 m and 0.159 kg m^-2^, resulting in
+mean $C_L=2.62$ m. $FC_{SE}$ values (eq. 6), ranged from 0.291 to 1.227
+kg m^-2^, with a mean of 0.658 kg m^-2^ .
 
 The final solution was calculated by solving for M:
 
@@ -813,152 +1031,51 @@ $$\begin{align*}
 (SFC_{Im}+FC_{SE \cdot Im} \cdot M) \cdot ROS_{0 \cdot Im} &= SFC_{Th} \cdot ROS_{0 \cdot Th} \\
 M &= \frac {SFC_{Th} \cdot ROS_{0 \cdot Th} - {SFC_{Im} \cdot ROS_{0 \cdot Im}}} {ROS_{Im} \cdot FC_{SE \cdot Im}} \\
 \end{align*}
-$$
-[eq. 9], or, if we assume that $SFC_{Th}=SFC_{Im}$, 
+$$ \[eq. 9\], or, if we assume that $SFC_{Th}=SFC_{Im}$,
 $$ M=\frac {SFC(ROS_{Th}-ROS_{Im})} {ROS_{Im} \cdot FC_{SE \cdot Im}}$$
-[eq. 10]. Mean $SFC_{Im}$ was 1.414 kg m^{-2}, while mean $SFC_{Th}$ was 1.124 kg m^{-2}, with the difference being non-significant (t-test: P=0.141). 
-
-Using the overall mean SFC of 1.337 kg m^{-2}, the two spread rate
-models produced 
-$$\begin{align*} 
+\[eq. 10\]. Mean $SFC_{Im}$ was 1.414 kg m\^{-2}, while mean $SFC_{Th}$
+was 1.124 kg m\^{-2}, with the difference being non-significant (t-test:
+P=0.141). Using the overall mean SFC of 1.337 kg m\^{-2}, the two spread rate
+models produced $$\begin{align*} 
 M_{ISI} &= \frac {1.337 (2.862-0.746)} {0.746 \cdot 0.658}  \\
 &= 5.770 \\
 \end{align*}
-$$ 
+$$
 
-using the ISI-based sROS model M12 and
-crowning thresholds, and 
+using the ISI-based sROS model M12 and crowning thresholds, and
 $$\begin{align*}
 M_{ISI_{sa}} &= \frac {1.337(1.876-0.286)} {0.286 \cdot 0.658}\\
 &= 11.280\\
 \end{align*}
 $$
 
-using the ISI~SA~-based sROS model M13 and the two 
-threshold ISI~SA~ values.
+using the ISI~SA~-based sROS model M13 and the two threshold ISI~SA~
+values.
 
-ROS, Other models: 
-M18: 
-IM: 1.199803
-TH: 2.643482
-M=2.445
+In addition varying sROS models, the sensitivity analysis also tested
+crown ratio (CR) by using the the dead ladder fuel midpoint (cohort
+height/2), the equivalent of a crown ratio of 1. This results in
+significantly lower FC~SE~ values, due to the greater z~L~ values. The
+varied sROS and CR models resulted in the matrix of M estimates shown in
+Table X.
 
-M20%: Use mean overall FFMC of 90.89 - ws=6.07 (IM), ws=14.88
-IM: 1.214
-TH: 2.976
-M=2.949
 
-m16 (mc, ws): mean FFMC of 90.89
-IM: 0.5525988
-TH: 3.074282
-M=9.272271
+Table x. Calculated estimates for *M*, the ladder fuel multiplier 
+1st row: ROS thresholds 
+rows: m20%, then isi.mods, then isim.mods 
+columns:
+(CR=0.5) IM thresh, TH thresh; (CR=1) IM thresh, TH thresh
+
+ROS, 
+Other models: M18: IM: 1.199803 TH: 2.643482 M=2.445
+
+M20%: Use mean overall FFMC of 90.89 - ws=6.07 (IM), ws=14.88 IM: 1.214
+TH: 2.976 M=2.949
+
+m16 (mc, ws): mean FFMC of 90.89 IM: 0.5525988 TH: 3.074282 M=9.272271
 
 m17 (mcsa, ws): mean FFMC of 90.89, mean DMC 42, IM_dens=3; TH_dens=2
-IM: 0.4756495
-TH: 2.655416
-M=9.3117
-
-
-In addition to the sROS models, the sensitivity analysis compared using
-the dead ladder fuel midpoint (cohort height/2), the equivalent of a
-crown ratio of 1. This results in significantly lower FC~SE~ values, due
-to the greater z~L~ values.
-
-Table x. 
-rows: m20%, then isi.mods, then isim.mods
-columns: (CR=0.5) IM thresh, TH thresh; (CR=1) IM thresh, TH thresh
-
-
-
-```{r include=FALSE}
-
-#t-test to compare SFC between treatments
-t.test(sh.ctrl$SFC, sh.th$SFC)
-#p=0.1409
-
-#m formula
-#M=SFCx(ROS_th - ROS_im)/(ROS_im x FC_se_im)
-
-m.function <- function(sfc, ros.th, ros.im, fc.se.im) { 
-  m=sfc*(ros.th-ros.im)/(ros.im*fc.se.im)
-  return(m)
-  #solve for m with IM and TH threshold values
-}
-
-#vector of ISI- or wind-based ROS estimates
-#m12, m16(mc, ws), m18, m20%
-isi.mods <- c('M12', 'M16', 'M18', 'M20%')
-
-#vector of isi.m-based ROS estimates
-#m9, m13, m17(mcsa, ws)
-isim.mods <- c('M9', 'M13','M17')
-
-
-#check with m12 to start:
-thresh.im <- fun.m12(isi.thresh.im)
-thresh.th <- fun.m12(isi.thresh.th)
-
-#equivalent Byram's intensity near crowning threshold:
-#only really works with mean SFC from both sites
-#mean SFC
-mean.sfc <- sh.fires %>% 
-  filter(Exp %in% c('Imm', 'Thin')) %>% summarize(mean(SFC))
-
-
-#What is this?
-sf.crisi.fun(isi.thresh.im) * 300 * (mean.sfc + mean(sh.ctrl2$sfc.add) * 2.2)  #M=2.2?
-sf.crisi.fun(isi.thresh.th) * 300 * mean.sfc # = I_0
-
-#actual calculations of M, at long last:
-#replace $sfc.add with $sfc.add2 to use the dead snag centroid (height/2), 
-#rather than height*0.75  
-M3isi <- ((mean.sfc * sf.crisi.fun(isi.thresh.th))/
-         sf.crisi.fun(isi.thresh.im) - mean.sfc)/ 
-  mean(sh.ctrl2$sfc.add)
-
-M3isim <- ((mean.sfc * sf.crisim.fun(isim.thresh.th))/
-         sf.crisim.fun(isim.thresh.im) - mean.sfc)/ 
-  mean(sh.ctrl2$sfc.add)
-
-#with LF centroid at H/2 instead of 'crown' centroid:
-M3isi2 <- ((mean.sfc * sf.crisi.fun(isi.thresh.th))/
-         sf.crisi.fun(isi.thresh.im) - mean.sfc)/ 
-  mean(sh.ctrl2$sfc.add2)
-
-M3isim2 <- ((mean.sfc * sf.crisim.fun(isim.thresh.th))/
-         sf.crisim.fun(isim.thresh.im) - mean.sfc)/ 
-  mean(sh.ctrl2$sfc.add2)
-
-#compare M values using different methods
-meanM <- sum(M3isi, M3isim, M3isi2, M3isim2)/4
-
-#another tactic would be to make the case for NO M! (M=1)
-#Maybe ok, some of difference was due to higher SFC in Ctrl/Imm stands
-
-sfc.im <- sh.ctrl2$SFC %>% mean()
-sfc.th <- sh.th2$SFC %>% mean()
-
-#Using isi and isim models, different SFC vals:
-#replace $sfc.add with $sfc.add2 to use the dead snag centroid (height/2), 
-#rather than height*0.75  
-M3isi.diff <- ((sfc.th * sf.crisi.fun(isi.thresh.th))/
-         sf.crisi.fun(isi.thresh.im) - sfc.im)/ 
-  mean(sh.ctrl2$sfc.add)
-
-M3isim.diff <- ((sfc.th * sf.crisim.fun(isim.thresh.th))/
-         sf.crisim.fun(isim.thresh.im) - sfc.im)/ 
-  mean(sh.ctrl2$sfc.add)
-
-#M = 1.3 with ISI mod, 3.3 with isim model
-
-meanM2 <- sum(M3isi, M3isim, M3isi2, M3isim2, M3isi.diff, 
-              M3isim.diff)/6
-
-
-#Table
-mdf <- data.frame()
-
-```
+IM: 0.4756495 TH: 2.655416 M=9.3117
 
 
 #### Empirical crown fire analysis
@@ -1031,12 +1148,12 @@ residence time (refs#) are probably important for determining the degree
 of consumption of standing ladder fuels such as dead saplings.
 
 -The concept of a multiplier for comparing elevated fuels to surface
-fuels is a similar topic to Van Wagner's [-vanwagner1977] 'c' parameter
-of 0.01, deduced from a comparison of only two experimental fires, as
-discussed by Alexander [@alexander1998]. Densely-packed litter fuelbeds
-have lower spread rate than lower density fuelbeds with the same fuel
-load [@campbell-lochrie2021], although the relationship is likely more
-complex in canopy fuels [@schwilk2015].
+fuels is a similar topic to Van Wagner's \[-vanwagner1977\] 'c'
+parameter of 0.01, deduced from a comparison of only two experimental
+fires, as discussed by Alexander [@alexander1998]. Densely-packed litter
+fuelbeds have lower spread rate than lower density fuelbeds with the
+same fuel load [@campbell-lochrie2021], although the relationship is
+likely more complex in canopy fuels [@schwilk2015].
 
 -As Andrews [-@andrews2018] noted, Rothermel surface model only
 applicable to surface fuels, within \~6ft of the ground
@@ -1044,16 +1161,12 @@ applicable to surface fuels, within \~6ft of the ground
 -Thinning increases sub-canopy turbulence [@russell2018]. See also
 Banerjee et al. [@banerjee2020]
 
-McAlpine and Xanthopoulos [@mcalpine1989a] also noted that C-6s appeared
-to overpredict sROS in needle fuelbed experiments. Although they
-explained it as a difficulty in estimating
-
 Method could also be used to estimate influence of dead branch fuel
 below LCBH, bark flakes, arboreal lichens, or similar material.
 
 Surface fire ROS model is an important component of all calculations.
 Although the SROS models we present are imprecise and gloss over
-potentially importnat differences such as litter type, canopy closure,
+potentially important differences such as litter type, canopy closure,
 overstory species and porosity (as per Rothermel 1972; Campbell-Lochrie
 et al. 2021), they are important to show real-world surface fire
 conditions in Canadian conifer stands. These models can be used along
@@ -1072,4 +1185,9 @@ a mean SFC of 1.34 kg m^-2^, Byram's (1959) model suggests 911 kW/m
 intensity, nowhere near the 1739 kW/m needed for crowning (at mean FMC
 of 108 %).
 
+Only problem with this is that, as a calibration study, uses linkages between several empirical models, all of which appear quite sensitive to inputs. Thus, sROS models are highly sensitive to small differences in wind speed and fuel moisture, and the ISI thresholds differences between IM and TH stands can result in quite different critical sROS values depending which model is chosen. The SFC and FC.se are also sensitive and quite variable, with 
+
 ## References:
+
+:::{#refs}
+:::
