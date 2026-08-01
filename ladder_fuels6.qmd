@@ -31,11 +31,11 @@ load(file='./files/wbmc5.rda')
 load(file='./files/ISI.rda')
 
 #get fd 
-fd4 <- read.csv('./files/fire_data_2026.csv') %>%  
+fd <- read.csv('./files/fire_data_2026.csv') %>%  
   mutate(CFI2=factor(CFI1, labels=c('Surface', 'Crown')))
 
 #Deciduous data
-d1 <- read.csv('./files/fire_data_d1_apr2024.csv')
+#d1 <- read.csv('./files/fire_data_d1_apr2024.csv')
 
 ```
 
@@ -43,19 +43,19 @@ d1 <- read.csv('./files/fire_data_d1_apr2024.csv')
 
 ```{r create data.frames, include=FALSE}
 #Combine conifer data with D1
-fd.all <- bind_rows(fd4 %>% select(
-  num:RH, Grass.Cure) %>%
-    mutate(Date=ymd(Date)), 
-  d1 %>% select(num:RH, Grass.Cure) %>%
-    mutate(Date=ymd(Date)))  
+# fd.all <- bind_rows(fd %>% select(
+#   num:RH, Grass.Cure) %>%
+#     mutate(Date=ymd(Date)), 
+#   d1 %>% select(num:RH, Grass.Cure) %>%
+#     mutate(Date=ymd(Date)))  
 
 #assign project codes - Sharpsand
-sharp <- filter(fd4, str_detect(ExpProject, "Sharpsand IM")) %>% pull(num)  #original Sharpsand Immature stands only
-sharp.th <- filter(fd4, str_detect(ExpProject, "Sharpsand TH")) %>% pull(num)
-sharp.sm <- filter(fd4, str_detect(ExpProject, "Sharpsand SM")) %>% pull(num)
+sharp <- filter(fd, str_detect(ExpProject, "Sharpsand IM")) %>% pull(num)  #original Sharpsand Immature stands only
+sharp.th <- filter(fd, str_detect(ExpProject, "Sharpsand TH")) %>% pull(num)
+sharp.sm <- filter(fd, str_detect(ExpProject, "Sharpsand SM")) %>% pull(num)
 
 #get sharpsand (IM and TH) stand data
-sh.fires0 <- filter(fd4, num %in% c(sharp, sharp.th, sharp.sm)) %>% 
+sh.fires0 <- filter(fd, num %in% c(sharp, sharp.th, sharp.sm)) %>% 
   select(fire, Date, num, ws, MC.SA, MC.SA_dens, MC.SA_season, FMC, 
          FFMC, DMC, ISI, FSG1, SFC, ROS, 
          DC, BUI, FWI, CFI1, CFI2, Site) %>%
@@ -65,6 +65,7 @@ sh.fires0 <- filter(fd4, num %in% c(sharp, sharp.th, sharp.sm)) %>%
            num %in% sharp.sm ~'Semi-M' ),
          Plot=str_extract(fire, '\\d+') %>% as.integer) #extract plot num. from string
 
+#Recalculate mc.sa for dens=2 and dens=3 assumptions
 sh.fires1 <- mutate(rowwise(sh.fires0), 
                     MC.SA2=wbmc5(ffmc=FFMC, dmc=DMC, stand=4, 
                                  density=2, season=MC.SA_season),
@@ -74,7 +75,7 @@ sh.fires1 <- mutate(rowwise(sh.fires0),
                                  wbmc5(ffmc=FFMC, dmc=DMC, stand=4,
                                        density=3, season=MC.SA_season))) 
                 #MC.SA2 assumes density of 2 for all
-                #MC.SA3 assumes dens of 3 for all
+                #MC.SA3 assumes dens of 3 for all (except FFMC > 92.9)
                       
 #Calculate isi.sa, using mcSA and wind speed:
 isi.mcsa <- function(mc, ws) {
@@ -84,12 +85,11 @@ isi.mcsa <- function(mc, ws) {
   return(0.208*f_w*f_f)
 }
 
-
 #main dataframe for threshold analysis - Sharpsand fires
 sh.fires <- mutate(rowwise(sh.fires1), 
                 isi.m=isi.mcsa(mc=MC.SA, ws=ws),  #isi.m uses actual MC.SA
-                isi.m2=isi.mcsa(mc=MC.SA2, ws=ws),
-                isi.m3=isi.mcsa(mc=MC.SA3, ws=ws)) %>% #alternate where all are Dens=2
+                isi.m2=isi.mcsa(mc=MC.SA2, ws=ws), #alternate where all are Dens=2
+                isi.m3=isi.mcsa(mc=MC.SA3, ws=ws)) %>% #alt with all Dens=3
   as.data.frame()
 
 ```
@@ -98,24 +98,26 @@ sh.fires <- mutate(rowwise(sh.fires1),
 
 ```{r sros, include=FALSE}
 #get models from sROS project; also need associated models saved
-#
-load('./files/sros-m9.rda')
+#Prediction functions
+load('./files/sros-m9c.rda')
+load('./files/sros-m11c.rda')
 load('./files/sros-m12.rda')
 load('./files/sros-m13.rda')
 load('./files/sros-m14.rda')
 load('./files/sros-m16.rda')
 load('./files/sros-m17.rda')
-load('./files/sros-m18.rda')
+load('./files/sros-m19.rda')
 m20 <- function(ws) {0.2*ws}
 
 #full models
-load('./files/m9-mod.rda')
+load('./files/m9c-mod.rda')
+load('./files/m11c-mod.rda') #not sure if correct; needs function too
 load('./files/m12-mod.rda')
 load('./files/m13-mod.rda')
 load('./files/m14-mod.rda')
 load('./files/m16-mod.rda')
 load('./files/m17-mod.rda')
-load('./files/m18-mod.rda')
+load('./files/m19-mod.rda')
 
 ```
 
@@ -199,7 +201,7 @@ dead.cfl.snag <- mean(lf.cfl*10000/s.ha.ctrl)  #mean snag weight cfl (<1 cm) per
 lf.cflp16 <- round(6875 * dead.cfl.snag / 10000, 3)  #est. lf.cfl for p16 based on 
   #num. of snags, mean cfl (< 1 cm) per snag
 
-sh.full$TRT[17] <- 'ctrl'  #assign partly-thinned one to ctrl grp
+sh.full$TRT[17] <- 'ctrl'  #assign partly-thinned one to ctrl grp, in line with previous Perrakis studies
 
 lf.cfl2 <- c(0.142, 0.073, 0.313, 0.183, 0.133, 0.146, 0.131, 0.131,
               0.176, 0.182, 0.151, lf.cflp16, 0.218, 0.084) #added p16
@@ -213,7 +215,7 @@ sh.ctrl <- filter(sh.full, TRT=='ctrl') %>%
          cfc.d.stem=cfc.d * 10000/s.ha.d,   #kg/m2*10000 m2/ha/s/ha = kg/stem
          cen.l= HT.D * 0.75,  #ladder centroid of dead crown consumption; 
          #assume CR of 0.5 and full branch structure; worth testing - 
-         #alternative would be HT.D *0.5
+         #alternative would be HT.D *0.5 - assume CR of 1
          fc.se.ctrl=fc.se(zg=FSG, cl=cen.l, fcl=cfc.d), #calculate surface-equiv.
          #ladder fuel consumption
          fc.se.stem=fc.se.ctrl/s.ha.d,
@@ -231,6 +233,7 @@ cfc.dstem <- summarize(sh.ctrl, mean(cfc.d.stem)) %>% pull()
 
 sh.th0 <- filter(sh.full, TRT=='th')
 
+#Use mean values for missing data
 sh.s.ha.d.th <- filter(sh.th0, !Plot %in% c(8,9)) %>%
   summarize(mean(s.ha.d)) 
 
@@ -247,10 +250,10 @@ sh.th <- sh.th0 %>%
          #to estimate cfc in thinned plots
          cfc.d=cfc.d.stem * s.ha.d / 10000, 
          #kg * s/ha / 10000m^2/ha to give kg/m^2
-         cen.l= HT.D * 0.75,  #crown centroid calcs; assume CR of 0.5;
+         cen.l= HT.D * 0.75,  #crown centroid calcs; assumes CR of 0.5;
          fc.se.th=fc.se(zg=FSG, cl=cen.l, fcl=cfc.d),
          fc.se.stem=fc.se.th/s.ha.d,  #surf.equivalent FC per stem
-         fc.se.th2=fc.se(zg=FSG, cl=HT.D/2, fcl=cfc.d)) #alt fc.se
+         fc.se.th2=fc.se(zg=FSG, cl=HT.D/2, fcl=cfc.d)) #alt fc.se with CR of 1
 
 sh.th.model <- sh.th %>% select(Plot, ISI, isi.m, FSG=FSG1, SFC, fc.se.th, 
                            fc.se.th2, CFI=CFI1) %>% 
@@ -430,12 +433,12 @@ m.function <- function(sfc, ros.th, ros.im, fc.se.im) {
   #solve for m with IM and TH threshold values
 }
 
-#model list
-#m20%, m12, m16(mc, ws), m18 (FT=con)
+#model list - updated since Surf Fire paper
+#m20%, m12, m16(mc, ws), m18c (FT=con)
 #mod.list.isi <- list(m20, m12.conISI, m16.power, m18.agAsy.FT)
 
 #model list, isi.sa models
-#m9(SFC), m13, m17(mcsa, ws)
+#m9c(SFC), m11c, m13, m17(mcsa, ws)
 #mod.list.isim <- list(m9.sros.isim2SFC.mod, m13.conSa, m17.power.sa)
 
 #mod.list.all <- list(m20, m12.conISI, m16.power, m18.agAsy.FT,
@@ -782,39 +785,39 @@ additional fire behaviour studies [@call1997; @albini1986; @cruz1999;
 
 During the course of the early experiments, it was discovered that 5 or
 6 of the plots had been hand-thinned (TH) in 1960, removing most of the
-regenerating stems and resulting in much less dense stands compared with
-the 'control' IM plots [@stocks1987; B. J. Stocks, personal
-communication, Jan. 2020]. Thinned stands were measured to have higher
-DBH than controls [@degroot2022]. It is unclear whether thinning
-resulted in increased height or altered LCBH compared with than
-controls. Any treatment differences would be small, as experimental
-leaders did not observe it and originally assigned the approximate LCBH
-value of 4 m to all experimental plots, including controls and thinned
-treatments (B.J. Stocks, personal communication 2020).
+dead stems and resulting in much less dense stands compared with the
+'control' IM plots [@stocks1987; B. J. Stocks, personal communication,
+Jan. 2020]. Thinned stands were measured to have higher DBH than
+controls [@degroot2022]. It is unclear whether thinning resulted in
+increased height or altered LCBH compared with than controls. Any
+treatment differences in LCBH would be small, as experimental leaders
+did not observe it and originally assigned the approximate LCBH value of
+4 m to all experimental plots, including controls and thinned plots
+(B.J. Stocks, personal communication 2020).
 
-In the later fires (1988-1991), stand characteristics indicated
-significant structural changes underway during the intervening years.
-The dense IM plots were initially surveyed at \>9000 live stems ha^-1^
-and \> 10,000 dead stems ha^-1^ [measured in 1973; @stocks1987]; when
-re-surveyed over a decade later, self-thinning in so-called semi-mature
-(SM) stands had reduced live and dead stem density by 53 % and 63 %,
-respectively, while total basal area increased by 37 %; average LCBH had
-also increased to 5.3 m, about 1 m higher than IM stands [@mcrae2017].
+In the later fires (1988-1991), stand characteristics and fuel structure
+had already changed from the earlier experiments, reflecting natural
+post-fire succession [@brown2026]. The dense IM plots were initially
+surveyed at \>9000 live stems ha^-1^ and \> 10,000 dead stems ha^-1^
+[measured in 1973; @stocks1987]; when re-surveyed in 1984, self-thinning
+in so-called semi-mature (SM) stands [@mcrae2017] had reduced live and
+dead stem density by 53 % and 63 %, respectively, while total basal area
+increased by 37 %; mean estimated LCBH had also increased to 5.3 m,
+about 1 m higher than IM stands [@mcrae2017].
 
-As discussed in a previous study [@perrakis2023b], earlier studies
-handled these three stand types in various ways. With the IM stands
-included in the C-4 fuel type, the TH plots had been deemed more
-representative of mature pine stands and previously included in the FBP
-System C-3 fuel type; this despite similar age, LCBH and site
-characteristics as the IM stands [@degroot2022]. In later studies, the
-ladder fuel influence in IM stands was estimated by some authors to act
-similarly to a reduction of the LCBH; this was based on the logic of
-reduced distance between surface fuel and continuous canopy fuel caused
-by the standing dead ladder fuels. This modified LCBH measure was termed
-the Fuel Strata Gap, equal to 2 m [@cruz2004a; @cruz2006;
-@perrakis2023b]. The raw Sharpsand Creek fire data along with
-descriptions of fire type label classes and interpretations can be found
-in supplemental material.
+Previous studies handled these three stand types in various ways
+[@perrakis2023b]. While the IM stands were included in the C-4 fuel
+type, the TH plots had been deemed more representative of mature pine
+stand structure and included in the FBP System C-3 fuel type; this
+despite similar age, LCBH and site characteristics as the IM stands
+[@degroot2022]. In later studies, the ladder fuel influence in IM stands
+was estimated by some authors to act similarly to a reduction of the
+LCBH; this was based on the logic of reduced distance between surface
+fuel and continuous canopy fuel caused by the standing dead ladder
+fuels. This modified LCBH measure was termed the Fuel Strata Gap, equal
+to 2 m [@cruz2004a; @cruz2006; @perrakis2023b]. The raw Sharpsand Creek
+fire data along with descriptions of fire type label classes and
+interpretations can be found in supplemental material.
 
 ### 2.2 Crowning behaviour and ladder fuel consumption
 
@@ -822,29 +825,27 @@ The most challenging value for the analysis is the fuel consumption of
 ladder fuels, as this is seldom measured (though sometimes estimated
 indirectly) in experimental studies. Stocks [-@stocks1987] presented
 estimated dead roundwood fuel consumption for the original Sharpsand
-Creek experimental fires, and these values are used in the present
-analysis.
+Creek experimental fires, and these values are used presently.
 
-For the present calculations, ladder fuel influence was quantified using
-equation 6 to scale the estimated ladder fuel consumption (dead canopy
-fuel \< 1 cm; Stocks 1987) into an equivalent SFC contribution value,
-$SFC_L$. The vertical position of fine standing ladder fuels was assumed
-to be the crown centroid of the mean dead snag canopy layer at the stand
-level:
+For this analysis, ladder fuel influence was quantified using equation 6
+to scale the estimated ladder fuel consumption (dead canopy fuel \< 1
+cm; Stocks 1987) into an equivalent SFC contribution value, $SFC_L$. The
+vertical position of fine standing ladder fuels was assumed to be the
+crown centroid of the mean dead snag canopy layer at the stand level:
 
 $$C_L=CBH_{sap}+\frac {height_{sap}-CBH_{sap}}{2}$$\[eq. 8\]
 [@perrakis2023b]; $CBH_{sap}$ and $height_{sap}$ are the mean crown base
 height and mean height of the dead saplings, respectively. However,
 since $CBH_{sap}$ was unknown in our Sharpsand calibration dataset, we
-first assumed a crown ratio (CR) of 0.5 [@holdaway1986] and then tested
-its sensitivity by a second test with a CR of 1.
+first assumed a crown ratio [CR; @holdaway1986] of 0.5; to test the
+sensitivity of this assumption, we did a second analysis with a CR of 1.
 
 ![](files/FSG-snags-crown-AI.png)
 
-*Diagram (not to scale) showing approximate estimation of live crown
-base height (z), dead ladder fuel centroid (C~L~), and fuel strata gap
-(z~L~) for immature jack pine stands (unthinned controls) at Sharpsand
-Creek.*
+*Figure x. Diagram (not to scale) showing approximate estimation of live
+crown base height (z), dead ladder fuel centroid (C~L~), and fuel strata
+gap (z~L~) for immature jack pine stands (unthinned controls) at
+Sharpsand Creek. Diagram rendered using AI.*
 
 #### 2.2.1 Estimation 1 - Expert opinion, Sharpsand Creek (ON)
 
