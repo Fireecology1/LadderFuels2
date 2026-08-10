@@ -99,7 +99,8 @@ sh.fires <- mutate(rowwise(sh.fires1),
 ```{r sros, include=FALSE}
 #get models from sROS project; also need associated models saved
 #Prediction functions
-load('./files/sros-m9c.rda')
+load('./files/sros-m7.rda')  #SFC-based estimate
+load('./files/sros-m9c.rda')  #SFC-based estimate
 load('./files/sros-m11c.rda')
 load('./files/sros-m12.rda')
 load('./files/sros-m13.rda')
@@ -107,18 +108,21 @@ load('./files/sros-m14.rda')
 load('./files/sros-m16.rda')
 load('./files/sros-m17.rda')
 load('./files/sros-m19.rda')
-m20 <- function(ws) {0.2*ws}
+m20 <- function(ws) {0.2*ws} # use m20?
 
 #full models
-load('./files/m9c-mod.rda')
-load('./files/m11c-mod.rda') #not sure if correct; needs function too
-load('./files/m12-mod.rda')
-load('./files/m13-mod.rda')
-load('./files/m14-mod.rda')
-load('./files/m16-mod.rda')
-load('./files/m17-mod.rda')
-load('./files/m19-mod.rda')
-
+load('./files/m7-mod.rda')  #isi, sfc  AGG - SFC-based estimate - use
+load('./files/m9c-mod.rda')  #isi.sa, sfc  AGG - SFC-based - use
+load('./files/m11c-mod.rda') #isi.sa AGG - .sa use
+load('./files/m12-mod.rda')  #ISI BOCON - use
+load('./files/m13-mod.rda')  #isi.sa BOCON-based .sa use
+load('./files/m14-mod.rda')  #ws, mc AGG
+load('./files/m16-mod.rda')  #ws, mc BOCON - use
+load('./files/m17-mod.rda')  #ws, mcsa BOCON - .sa use
+load('./files/m19-mod.rda')  #isi.sa - PPDF-OC only (do not use)
+#List to use, ISI: m12, m16, m20
+#to use, ISI.sa: m11c, m13, m17
+#models are used in section M Calculations
 ```
 
 ### \[VW.lf mods and lf function fc.se\]
@@ -142,7 +146,7 @@ vwi <- function(fmc=100, z) {
   return(I_0)
 }
 
-#ladder fuel scaling: surface-equivalent fuel consumption
+#ladder fuel scaling: surface-equivalent fuel consumption (unmodified)
 #changed from lf.sfc
 fc.se <- function(zg, cl, fcl) {
   #zg is overstory LCBH
@@ -269,7 +273,7 @@ sh.th.model <- sh.th %>% select(Plot, ISI, isi.m, FSG=FSG1, SFC, fc.se.th,
 #Define levels for Sharp trts:
 trts <- c('Imm', 'Thin', 'Semi-M')
 
-fires.stat <- select(sh.fires, CFI1, CFI2, FFMC, ws, SFC, 
+fires.stat <- select(sh.fires, CFI1, CFI2, FFMC, DMC, ws, SFC, 
                      MC.SA, MC.den1=MC.SA_dens, ISI, Exp, isi.m, 
                      isi.m2, isi.m3) %>%
   mutate(ExpF=factor(Exp, levels=trts)) %>%
@@ -420,6 +424,10 @@ sh.isi.log <-
 #t.test(sh.ctrl$SFC, sh.th$SFC)
 #p=0.1409
 
+#t-test to compare DMC between treatments
+#t.test(sh.ctrl$DMC, sh.th$DMC)
+#p=0.3515
+
 #m formula
 #M=SFCx(ROS_th - ROS_im)/(ROS_im x FC_se_im)
 
@@ -433,35 +441,25 @@ m.function <- function(sfc, ros.th, ros.im, fc.se.im) {
   #solve for m with IM and TH threshold values
 }
 
-#model list - updated since Surf Fire paper
-#m20%, m12, m16(mc, ws), m18c (FT=con)
-#mod.list.isi <- list(m20, m12.conISI, m16.power, m18.agAsy.FT)
+#model list - ISI, updated since Surf Fire paper
+#List to use, ISI: m12, m16, m20
+#to use, ISI.sa: m11c, m13, m17
 
-#model list, isi.sa models
-#m9c(SFC), m11c, m13, m17(mcsa, ws)
-#mod.list.isim <- list(m9.sros.isim2SFC.mod, m13.conSa, m17.power.sa)
-
-#mod.list.all <- list(m20, m12.conISI, m16.power, m18.agAsy.FT,
-#                     m9.sros.isim2SFC.mod, m13.conSa, m17.power.sa)
-
-#loop to get ROS estimates
-#pred.list <- vector('list', length(mod.list.all))
-
+#Prepare vectors for modelling
 isi.vals <- c(isi.thresh.im, isi.thresh.th)
 isim.vals <-c(isim.thresh.im, isim.thresh.th)
 ffmc.val <- mean(sh.full$FFMC)  #90.89
 dmc.val <- mean(sh.full$DMC)   #42
 ws.vals <- c(6.055, 14.881)  #ws vals at FFMC 90.89 to get thresh ISI
 sfc.mean <- mean(sh.full$SFC)  #1.3374
-mcsa.val <- mean(sh.full$MC.SA2) #10.329
+mcsa.val <- mean(sh.full$MC.SA2) #10.329 , using Density=2 for all
 ws.vals.sa <- c(5.493, 13.883)  #ws vals at mc.sa 10.329 to get thresh isim
 
 #Model predictions at crown fire thresholds: ISI models
-#maybe just use the ones with ISI & mc/ws?
+#
 Mm20 <- m20(ws.vals) #ok with FFMC 90.89
 Mm12 <- fun.m12(isi.vals) #ok ISI
 Mm16 <- fun.m16(ws=ws.vals, mc=mcF(ffmc.val)) #maybe
-#Mm18 <- fun.m18(isi.vals) #ok FT
 
 #Variable types
 vars <- c('ROS: WS', 'ROS: ISI', 'ROS: WS, FFMC')
@@ -473,17 +471,16 @@ modelMms <- rbind(Mm20, Mm12, Mm16) %>% #no m18
 
 colnames(modelMms) <- c('ROS.im', 'ROS.th', 'Method')
 
-#Model predictions at CF thresholds: ISI.m models
-#If needed, ISI.sa & mc.sa models
-#Mm9 <- fun.m9(isim=isim.vals, sfc=c(sfc.mean, sfc.mean)) #already used
-#Doesn't really work with mean SFC
+#Model predictions at CF thresholds: ISI.sa models
+#
+Mm11c <- fun.m11c(isi.m=isim.vals)
 Mm13 <- fun.m13(isi.m=isim.vals)
 Mm17 <- fun.m17(ws=ws.vals.sa, mcsa=mcsa.val)
 
 #Var types
-vars2 <- c('ROS: ISI_sa', 'ROS: WS, mc_sa')
+vars2 <- c('ROS: ISI_sa1', 'ROS: ISI_sa2', 'ROS: WS, mc_sa')
 
-modelMmsa <- rbind(Mm13, Mm17) %>%
+modelMmsa <- rbind(Mm11c, Mm13, Mm17) %>%
   as.data.frame() %>%
   mutate(Var=vars2)
 
@@ -503,34 +500,45 @@ m.table0 <- full_join(solve.for.m1, solve.for.m2) %>%
   select(Method, everything()) %>%
   tibble()
 
-#Another way is with M9, using SFC
-#TH threshold ROS is reached using IM isim with SFC of 5.604
+#Another way is with M7, M9, using SFC (M7: ISI; M9: ISI.sa)
+#Updated Aug 5
+#TH threshold ROS with ISI
+#TH threshold ROS is reached (m7) using IM ISI with SFC of 5.1796
+#this is mean SFC + FC.se*M
+#M=(5.1796-1.337)/FC.se
+#TH threshold ROS is reached using IM isim with SFC of 5.604 (not updated for m9c)
 #this is mean SFC + FC.se*M
 #M=(5.604-1.337)/FC.se
-#M=5.780317
-#No, doesn't work because of ROS model
-beta1 <- summary(m9.sros.isim2SFC.mod)$coefficients[1]
-beta2 <- summary(m9.sros.isim2SFC.mod)$coefficients[2]
+#M=6.64 #old value
+#
+m7beta1 <- summary(m7.sros.ISI2SFC.mod)$coefficients[1]
+m7beta2 <- summary(m7.sros.ISI2SFC.mod)$coefficients[2]
+Mm7 <- (((m7beta1 * isi.thresh.th^2+m7beta2*sqrt(sfc.mean)-m7beta1*isi.thresh.im^2)/m7beta2)^2-sfc.mean)/fc.se.im.mean
+#5.9817
+
+beta1 <- summary(m9c)$coefficients[1]
+beta2 <- summary(m9c)$coefficients[2]
 Mm9 <- (((beta1*isim.thresh.th^2+beta2*sqrt(sfc.mean)-beta1*isim.thresh.im^2)/beta2)^2-sfc.mean)/fc.se.im.mean
-#6.64
+#6.611
 
-#Mm9.sfc <- (5.064-sfc.mean)/fc.se.im.mean  #5.7803
+#
 
+#Updated? Don't recall where this comes from
 expert1 <- 8.62818
 expert2 <- 6.73126
 
 solve.expert <- data.frame(Method=c('Expert 1', 'Expert 2'), 
                            ROS.im=NA, ROS.th=NA, M=c(expert1, expert2))
 
-solve.m9 <- data.frame(Method='ROS & SFC', ROS.im=NA, ROS.th=NA, M=Mm9)
+solve.m7 <- data.frame(Method='ROS & SFC 1', ROS.im=NA, ROS.th=NA, M=Mm7)
+solve.m9 <- data.frame(Method='ROS & SFC 2', ROS.im=NA, ROS.th=NA, M=Mm9)
 
 #Table with all M estimates
-m.table <- bind_rows(solve.expert, solve.m9, m.table0) %>%
-  as.tibble()
+m.table <- bind_rows(solve.expert, solve.m7, solve.m9, m.table0) %>%
+  as_tibble()
 
-grand.mean.M <- mean(c(solve.for.m1 %>% pull(M), solve.for.m2 %>% pull(M),
-                  Mm9, expert1, expert2) )
-#6.06
+grand.mean.M <- m.table %>% summarize(mean(M))
+#6.12
 #
 #Should also make same calcs for CR=1
 #Also, correct IM FC.se by subtracting mean FC_L in TH stands 
@@ -541,7 +549,7 @@ m.table
 
 ```
 
-##\[Empirical crown fire reanalysis\]
+### \[Empirical crown fire reanalysis\]
 
 ```{r}
 xv.sum2 <-read.csv('C:/Dan/_Remote_projects/ccp_git/ccp-cfi/tables/xv_sum2_2024.csv')
@@ -551,61 +559,62 @@ xv.sum2 <-read.csv('C:/Dan/_Remote_projects/ccp_git/ccp-cfi/tables/xv_sum2_2024.
 
 ## Abstract
 
-Predicting the onset of conifer crown fires is an uncertain process.
-Ladder fuels (LF) are flammable biomass elements that act as a bridge
-between surface and canopy fuel layers. While LF layers are suspected of
-being disproportionately important in crown fire initiation, they are
+Predicting the onset of conifer crown fires is uncertain, and canopy
+fuel structure has been shown to influence the crowning process. Ladder
+fuels (LF) are flammable biomass elements that act as a bridge between
+surface and canopy layers. While LF layers are suspected of being
+disproportionately important in crown fire initiation, they are
 difficult to quantify and incorporate into prediction systems. A
 somewhat similar problem occurs with multi-story canopy fuels, whereby
-ignition of intermediate-height layers is first required in order for
-higher canopy elements to become involved. By rearranging the terms of a
-well-known model, crown fire initiation is reframed as a critical fuel
+ignition of subcanopy layers is first required in order for overstory
+elements to become involved. By rearranging the terms of a well-known
+model, crown fire initiation is reframed as a critical fuel
 consumption-driven process. A new equation evaluates fuel consumption at
 different heights above ground, allowing for LF analysis using a new
 surface-equivalent fuel consumption variable, *FC~SE~*. Since surface
-fuels and LF greatly differ in structure, we also tested for the
-significance of a calibration multiplier, *M*, using field data from
-Canadian experimental fires. A range of values for *M* was derived using
-three methods, with an overall mean of approximately *M*=
-`r round(grand.mean.M, 1)` . These findings and equations will allow for
-important improvements to crown fire prediction and will greatly
-increase the effectiveness of hazard reduction treatments.
+fuels and LF greatly differ in structure, we also tested a calibration
+multiplier, *M*, using field data from Canadian experimental fires. A
+range of values for *M* was derived using three methods, with an overall
+mean of approximately *M*= `r round(grand.mean.M, 1)`. These findings
+and equations will allow for important improvements to crown fire
+prediction and will greatly increase the effectiveness of hazard
+reduction treatments.
 
 ## 1. Introduction
 
 Conifer forests cover most of the circumboreal region of the world and
 crown fires represent a significant fire-related hazard in these stands
-[@kneeshaw2011; @stocks1991]. As noted by Kiil et al. [-@kiil1976] and
-quoted by Cruz et al. [-@cruz2005], surface fires rarely spread \> 6
-m/min under closed conifer stands, as higher spread rates are usually
-associated with some degree of crowning or torching. Once flames reach
-the upper reaches of the canopy, they can be directly influenced by open
-air winds in the lower atmosphere. The fully developed crowning process
-has long been known to be associated with a dramatic increase in fire
-spread rate, due to several processes including flame tilt, increased
-lee-side wind exposure and vigorous ember spotting [@taylor2004;
-@alexander2016].
+[@kneeshaw2011; @stocks1991]. As documented in previous studies
+[@kiil1976; @cruz2005], surface fires rarely spread \> 6 m/min under
+closed conifer stands, as higher spread rates are usually associated
+with some degree of canopy involvement in the form of crowning or
+torching behaviour. Once flames reach the upper reaches of the canopy,
+they can be directly influenced by open air winds in the lower
+atmosphere. The fully developed crowning process has long been known to
+be associated with a dramatic increase in fire spread rate, due to
+several processes including flame tilt, increased lee-side wind exposure
+and vigorous short-range ember spotting [@taylor2004; @alexander2016].
 
 Stand structure is well-known to influence crown fire occurrence and
-tendency. While crown fires occur readily in short trees (\< \~12 m
-height) of the northern boreal forest, the element in fuel complexes
-that enables crown fires in most tall conifer stands are ladder fuels
-(LF). This term refers to any easily-ignited fuels in the mid-canopy
-space, meaning fine-textured and flammable dead or live biomass above
-the surface fuel complex but below the live canopy base. In Canada,
-early wildfire researcher J.G. Wright first noted nearly a century ago
-that 'crown fires are not likely to occur unless there is a large volume
-of fuel under the trees' [@wright1932]. Van Wagner [@vanwagner1977a], in
-describing his classic crown fire initiation (CFI) model based on
-empirical data and physical convection theory, noted that such 'bridge
-fuels' consisted of 'combustible matter such as loose bark, dead lower
-branches, lichen, small conifers, etc.' located above the surface fuel
-complex, remarking that such fuels needed to be 'present in sufficient
-quantity to intensify the surface fire appreciably as well as to extend
-the flame height'. While the publication describing Van Wagner's model
-has become a classic (\> 1600 citations as of early 2026), practical
-methods for quantifying the LF influence are still lacking nearly a
-half–century later.
+tendency. While crown fires occur readily in the shorter forests (\<
+\~12 m tree height) of the northern boreal forest, the element in fuel
+complexes that enables crown fires in most tall conifer stands are
+ladder fuels (LF). This term refers to any easily-ignited fuels in the
+mid-canopy space, meaning fine-textured and flammable dead or live
+biomass above the surface fuel complex but below the live canopy base.
+In Canada, early wildfire researcher J.G. Wright first noted nearly a
+century ago that 'crown fires are not likely to occur unless there is a
+large volume of fuel under the trees' [@wright1932]. Decades later, Van
+Wagner [@vanwagner1977a] described his classic crown fire initiation
+(CFI) model based on empirical data and physical convection theory,
+noting that such 'bridge fuels' consisted of 'combustible matter such as
+loose bark, dead lower branches, lichen, small conifers, etc.' located
+above the surface fuel complex; such fuels needed to be 'present in
+sufficient quantity to intensify the surface fire appreciably as well as
+to extend the flame height'. While Van Wagner's model has been widely
+cited, adapted, and incorporated into operational fire prediction
+systems, practical methods for quantifying the LF influence are still
+lacking nearly a half–century later.
 
 Van Wagner's model was originally developed to identify the critical
 surface fire intensity ($I_0$) to enable CFI:
@@ -615,8 +624,8 @@ I_0=(chz)^{1.5}
 $$
 
 \[eq. 1\], where $h$ is heat of ignition, $z$ is live crown base height
-(LCBH), and $c$ is a dimensional constant, derived empirically; as
-Alexander and Cruz [@alexander2016] have noted, the $c$ value is
+(LCBH), and $c$ is a dimensional constant, derived empirically;
+Alexander and Cruz [@alexander2016] have noted that the $c$ value is
 somewhat questionable and may be stand-dependent. Most modelling systems
 have combined $I_0$ with Byram's [-@byram1959] fireline intensity
 equation in order to solve for critical rate of spread. This combination
@@ -634,22 +643,24 @@ processes.
 
 The objectives of this study were to 1) present a theoretical framework
 for analyzing LF influence in crown fire initiation, as previously
-described [@perrakis2025b]; 2) calibrate and evaluate the theoretical
-equation with field data; and 3) incorporate the LF function into an
-empirical operational crown fire model for use with estimated fuel
-structure variables.
+described in draft form [@perrakis2025b]; and 2) calibrate and evaluate
+the theoretical equation with field data. These goals will allow for
+much greater flexibility for adapting real world stand structure into
+crown fire models and systems.
 
-### 1.2 Theoretical model: scaling ladder fuel consumption to the surface
+### 1.2 Theoretical model: vertical scaling of ladder fuel consumption 
 
 Ladder fuels are defined by their fine texture and intermediate vertical
-position [@vanwagner1977a; @kilgore1975]. LF exist in conifer stands
-between the surface fuels, at $z=0$, and canopy fuels, which for our
-purposes begin at the live canopy base height (LCBH). When continuous
-with the surface fuelbed and ignited by a proximate source (i.e. an
-advancing fireline), the heat flux contribution of these fuels
-[@melnik2022] is much closer to the canopy base, and therefore much more
-likely to contribute to canopy ignition compared to similar fuel
-quantities at the surface.
+position [@vanwagner1977a; @kilgore1975]. If *z* represents vertical
+position above the forest floor in a conifer stand, LF exist between the
+surface fuels, at $z=0$, and canopy fuels, which for our purposes begin
+at the live canopy base height (LCBH), typically measured or estimated
+at heights of \~1–12 m or so in boreal or hemi-boreal forests. When
+continuous with the surface fuelbed and ignited by a proximate source
+(i.e. an advancing fireline), the heat flux contribution of LF fuels
+[@melnik2022] is often much closer to the canopy base, and therefore
+much more likely to contribute to canopy ignition compared to similar
+fuel quantities at the surface.
 
 It was previously shown [@perrakis2025b] that the formulation of the Van
 Wagner [-@vanwagner1977a] crown initiation model enables an algebraic
