@@ -559,72 +559,80 @@ xv.sum2 <-read.csv('C:/Dan/_Remote_projects/ccp_git/ccp-cfi/tables/xv_sum2_2024.
 
 ## Abstract
 
-Predicting the onset of conifer crown fires is uncertain, and canopy
+Predicting the onset of conifer crown fires is uncertain, though canopy
 fuel structure has been shown to influence the crowning process. Ladder
 fuels (LF) are flammable biomass elements that act as a bridge between
-surface and canopy layers. While LF layers are suspected of being
+surface and canopy layers. While LF elements are suspected of being
 disproportionately important in crown fire initiation, they are
 difficult to quantify and incorporate into prediction systems. A
 somewhat similar problem occurs with multi-story canopy fuels, whereby
 ignition of subcanopy layers is first required in order for overstory
 elements to become involved. By rearranging the terms of a well-known
-model, crown fire initiation is reframed as a critical fuel
-consumption-driven process. A new equation evaluates fuel consumption at
-different heights above ground, allowing for LF analysis using a new
-surface-equivalent fuel consumption variable, *FC~SE~*. Since surface
-fuels and LF greatly differ in structure, we also tested a calibration
-multiplier, *M*, using field data from Canadian experimental fires. A
-range of values for *M* was derived using three methods, with an overall
-mean of approximately *M*= `r round(grand.mean.M, 1)`. These findings
-and equations will allow for important improvements to crown fire
-prediction and will greatly increase the effectiveness of hazard
-reduction treatments.
+model, crown fire initiation is reframed as a critical fuel consumption
+(FC)-driven process. A new equation evaluates FC at varying heights
+above ground, allowing for LF analysis using the surface-equivalent fuel
+consumption, *FC~SE~*. Since surface fuels and LF greatly differ in
+structure, we also tested a calibration multiplier, *M*, using field
+data from Canadian experimental fires. Estimated values of *M* were
+derived using three methods, with an overall mean of approximately *M*=
+`r round(grand.mean.M, 1)` indicating six-fold influence of LF
+consumption compared to surface FC. These findings and equations will
+allow for important improvements to crown fire prediction and will
+greatly increase the effectiveness of hazard reduction treatments.
 
 ## 1. Introduction
 
 Conifer forests cover most of the circumboreal region of the world and
 crown fires represent a significant fire-related hazard in these stands
-[@kneeshaw2011; @stocks1991]. As documented in previous studies
-[@kiil1976; @cruz2005], surface fires rarely spread \> 6 m/min under
-closed conifer stands, as higher spread rates are usually associated
-with some degree of canopy involvement in the form of crowning or
-torching behaviour. Once flames reach the upper reaches of the canopy,
-they can be directly influenced by open air winds in the lower
-atmosphere. The fully developed crowning process has long been known to
-be associated with a dramatic increase in fire spread rate, due to
-several processes including flame tilt, increased lee-side wind exposure
-and vigorous short-range ember spotting [@taylor2004; @alexander2016].
+[@kneeshaw2011; @stocks1991]. Surface fires rarely spread \> 6 m/min
+under closed conifer canopies [@kiil1976; @perrakis2026], as higher
+spread rates are usually associated with canopy fire involvement in the
+form of torching or crowning behaviour. Once flames reach the upper
+reaches of the canopy, they are much more subject to influence by free
+air in the lower atmosphere. The fully developed crowning process has
+long been known to be associated with a dramatic increase in fire spread
+rate, due to several processes including flame tilt, increased lee-side
+wind exposure and vigorous short-range ember spotting [@taylor2004;
+@alexander2016]. Predicting the initiation of crown fires is therefore
+critical to accurate fire behaviour forecasting in conifer forests.
 
-Stand structure is well-known to influence crown fire occurrence and
-tendency. While crown fires occur readily in the shorter forests (\<
-\~12 m tree height) of the northern boreal forest, the element in fuel
-complexes that enables crown fires in most tall conifer stands are
-ladder fuels (LF). This term refers to any easily-ignited fuels in the
-mid-canopy space, meaning fine-textured and flammable dead or live
-biomass above the surface fuel complex but below the live canopy base.
-In Canada, early wildfire researcher J.G. Wright first noted nearly a
-century ago that 'crown fires are not likely to occur unless there is a
-large volume of fuel under the trees' [@wright1932]. Decades later, Van
-Wagner [@vanwagner1977a] described his classic crown fire initiation
-(CFI) model based on empirical data and physical convection theory,
-noting that such 'bridge fuels' consisted of 'combustible matter such as
-loose bark, dead lower branches, lichen, small conifers, etc.' located
-above the surface fuel complex; such fuels needed to be 'present in
-sufficient quantity to intensify the surface fire appreciably as well as
-to extend the flame height'. While Van Wagner's model has been widely
-cited, adapted, and incorporated into operational fire prediction
-systems, practical methods for quantifying the LF influence are still
-lacking nearly a half–century later.
+Stand structure is well-known to influence crown fire tendency. Models
+of crown fire initiation (CFI) or occurrence identify the height to the
+crown base as a critical structure variable; stands with a lower crown
+base, including species such as spruce (*Picea* sp.) or true fir
+(*Abies* sp.), are more easily ignited by an equivalent surface fire
+than higher-crown stands [@vanwagner1977a; @cruz2006; @perrakis2023b].
+While higher crown base stands, such as those of pine (*Pinus* sp.) or
+coastal Douglas-fir (*Pseudotsuga* *menziesii*) often require more
+extreme weather conditions and higher surface fire intensity for canopy
+ignition, this can be facilitated by so-called ladder fuels (LF). This
+term refers to any easily-ignited fuels in the mid-canopy space, meaning
+fine-textured and flammable dead and live biomass above the surface fuel
+complex but below the live canopy base. In Canada, early wildfire
+researcher J.G. Wright first noted nearly a century ago that 'crown
+fires are not likely to occur unless there is a large volume of fuel
+under the trees' [@wright1932]. Decades later, Van Wagner
+[@vanwagner1977a] described his classic crown fire initiation (CFI)
+model based on empirical data and physical convection theory, noting
+that such 'bridge fuels' consisted of 'combustible matter such as loose
+bark, dead lower branches, lichen, small conifers, etc.' located above
+the surface fuel complex; such fuels needed to be 'present in sufficient
+quantity to intensify the surface fire appreciably as well as to extend
+the flame height'. While Van Wagner's model has been widely cited,
+adapted, and incorporated into operational fire prediction systems,
+practical methods for quantifying the LF influence are still lacking
+nearly a half–century later.
 
-Van Wagner's model was originally developed to identify the critical
-surface fire intensity ($I_0$) to enable CFI:
+We presently begin our analysis with the simple and well-known
+formulation of Van Wagner's model, originally developed to identify the
+critical surface fire intensity ($I_0$) to enable CFI:
 
 $$
 I_0=(chz)^{1.5}
 $$
 
 \[eq. 1\], where $h$ is heat of ignition, $z$ is live crown base height
-(LCBH), and $c$ is a dimensional constant, derived empirically;
+(LCBH), and $c$ is a dimensional constant, derived empirically.
 Alexander and Cruz [@alexander2016] have noted that the $c$ value is
 somewhat questionable and may be stand-dependent. Most modelling systems
 have combined $I_0$ with Byram's [-@byram1959] fireline intensity
@@ -648,7 +656,7 @@ the theoretical equation with field data. These goals will allow for
 much greater flexibility for adapting real world stand structure into
 crown fire models and systems.
 
-### 1.2 Theoretical model: vertical scaling of ladder fuel consumption 
+### 1.2 Theoretical model: vertical scaling of ladder fuel consumption
 
 Ladder fuels are defined by their fine texture and intermediate vertical
 position [@vanwagner1977a; @kilgore1975]. If *z* represents vertical
@@ -680,16 +688,17 @@ for critical ROS for crown fire initiation [@vanwagner1977a;
 @alexander1988a], this can also be solved for critical SFC:
 
 $$
-SFC_0=\frac {(ch)^{1.5} z^{1.5}} {h \cdot ROS} 
+SFC_0=\frac {(ch)^{1.5} z^{1.5}} {H \cdot ROS} 
 $$
 
-\[eq. 3\]. Different LCBH levels, $z_1$ and $z_2$, can also be compared,
+\[eq. 3\]. Since we are interested in varying the vertical position of
+fuel elements, we can compare different LCBH levels, $z_1$ and $z_2$,
 holding all other variables equal:
 
 $$
 \frac {SFC_2}{SFC_1}=
-\frac {  \left[  \frac {(ch)^{1.5} z_2^{1.5}} {h \cdot ROS} \right] } 
-{  \left[  \frac {(ch)^{1.5} z_1^{1.5}} {h \cdot ROS} \right] }
+\frac {  \left[  \frac {(ch)^{1.5} z_2^{1.5}} {H \cdot ROS} \right] } 
+{  \left[  \frac {(ch)^{1.5} z_1^{1.5}} {H \cdot ROS} \right] }
 $$
 
 \[eq. 4\], assuming no change in ROS with varying LCBH. This simplifies
@@ -702,10 +711,10 @@ $$
 
 \[eq. 5\]. In the case of the consumption of an elevated LF quantity
 $FC_L$, positioned at a certain height above ground $C_L$ (ladder fuel
-centroid) in the forest, the surface-equivalent $FC$ value ($FC_{SE}$)
-is defined using a modification of eq. 5, where the influence of $FC_L$
-represents an inflated consumption quantity due to its elevated position
-and therefore disproportional influence on crown fire. In this case, $z$
+centroid), the surface-equivalent $FC$ value ($FC_{SE}$) is defined
+using a modification of eq. 5, where the influence of $FC_L$ represents
+an inflated consumption quantity due to its elevated position and
+therefore disproportional influence on crown fire. In this case, $z$
 remains the normal LCBH for the live canopy and $z-C_L$ represents the
 fuel strata gap between LF elements and the LCBH, the key vertical gap
 in this situation for representing the LF influence:
@@ -721,60 +730,65 @@ fuel complex in an additive manner.
 There are several concerns with this relationship that must be addressed
 before it can be inserted into a crown fire initiation or occurrence
 model: 1) an adequate estimate of $FC_L$ must be available, likely from
-a previous study or model; 2) eq. 6 assumes that LF and surface fuel
-structure and combustion properties are identical, which is seldom the
-case, as surface fuels in forested systems tend to have much greater
-bulk density than canopy fuels, including most LF [@rothermel1972;
-@schwilk2015; @keane2015]. This concern is also related to the available
-data on SFC and head fire intensity, such as from systems and datasets
-which assume that all consumed surface and ground fuels contribute to
-surface fire intensity [@vanwagner1977a;
-@forestrycanadafiredangergroup1992]; this may overemphasize dense duff
-fuels that burn in post-frontal combustion. In contrast, fine canopy and
-ladder fuel strata are much more aerated and discontinuous. This
-distinction will presently be addressed via empirical calibration.
-Finally, ladder fuel height cannot exceed the LCBH, and when the
-vertical difference diminishes, $FC_{SE}$ can grow extreme values.
-Either calibration or some estimated working limits may also be needed
-to account for this constraint.
+a previous study or model, and obtaining this information is clearly
+non-trivial. 2) Eq. 6 treats LF and surface fuel structure and
+combustion properties identically, despite obvious structure
+differences; surface fuels in forested systems tend to have much greater
+bulk density and therefore lower pososity and airflow compared with
+canopy fuels [@rothermel1972; @schwilk2015; @keane2015]. This concern is
+also related to the available data on SFC and head fire intensity, such
+as from systems and datasets which assume that all consumed surface and
+ground fuels contribute to surface fire intensity [@vanwagner1977a;
+@forestrycanadafiredangergroup1992]; this notion likely overemphasizes
+dense duff fuels that burn in post-frontal combustion, as the notion of
+flame residence time [@cheney1990] is ignored. In contrast, fine canopy
+and ladder fuel strata are much more aerated and discontinuous. This
+difference between surface and LF structure will presently be addressed
+via empirical calibration. A final concern is 3) ladder fuel height
+cannot exceed the LCBH (Eq. 6), and when the vertical difference
+diminishes, $FC_{SE}$ can reach extreme values. Either calibration or
+some estimated working limits may also be needed to account for this
+constraint.
 
 ### 1.3 Ladder fuel multiplier
 
-A simple approach to the challenge of contrasting high porosity ladder
-fuels with low porosity surface fuels is to evaluate the use of a
-multiplier. This would be a value used to adjust the value of $FC_{SE}$
-in order to bring it in line with SFC values, calculated via empirical
-means. The new equation to be tested is $SFC=FC_{SE} \cdot M$ \[eq. 7\],
-with $M$ being the appropriate multiplier, derived from experimental
-data.
+A simple approach to the challenge of contrasting aerated ladder fuel
+complexes with dense surface fuel beds is to use a multiplier. This
+quantity would be used on $FC_{SE}$ in order to bring it in line with
+SFC values. We will presently evaluate this approach, with the relevant
+equation $SFC=FC_{SE} \cdot M$ \[eq. 7\], with $M$ being the LF
+multiplier, derived using primarily empirical means.
 
-Measured and estimated SFC values in Canadian experimental fires ranged
-from 0.2 to 3.8 kg m^-2^ [@perrakis2023b]. The value of this multiplier,
-$M$, could range from 1 (no effect) to 10 or more in the event that
-ladder fuel biomass and arrangement appeared to have more than an order
-of magnitude greater effect than surface biomass on vertical heat flux
-and crown fire initiation.
+Measured and estimated SFC values in Canadian experimental conifer fires
+ranged from 0.2 to 3.8 kg m^-2^ [@perrakis2023b]. Ladder fuel
+consumption (*FC~L~*) data is much rarer and will often require some
+assumptions or models to estimate. The value of the multiplier, $M$,
+clearly depends on the nature of the SFC and *FC~L~* being used, but
+could range from 1 (no effect) to 10 or more for order of magnitude
+differences in structure influence.
 
-The remainder of the study tests and discusses empirical derivation of
-*M*, followed by a further testing phase by modifying a crown fire
-model.
+The remainder of the study tests and discusses the estimate of *M*,
+followed by a further testing phase by modifying a crown fire model.
 
 ## 2. Methods
 
 Three separate validation methods were used to evaluate the theoretical
-ladder fuel scaling relationship and calibrate the value of the
-multiplier M: 1) an expert opinion assessment, as well as a crown fire
-threshold model between three treatment types, using 2) an SFC-based ROS
-model as well as 3) additional models calibrated using Byram's intensity
-equation. The inclusion of ladder fuels as well as the estimated *M*
-value were further evaluated using a sensitivity analysis of a refitted
-crown fire occurrence model. The final step leads to a new concept of
-crown fire, where flaming transitions between canopy fuel strata can be
-tested and defined individually. All of these relate to stand level
-estimates of fuel structure using mean measured values. These techniques
-are relatively simple and operationally practical, but may mask
-significant impacts of within-stand heterogeneity and spatial pattern of
-fuel arrangement (e.g. clumping, proximity to overstory trees, etc.).
+ladder fuel scaling relationship (Eq. 6) and calibrate the multiplier
+*M*. All three methods rely on the valuable experiments and ensuing data
+collected conducted at Sharpsand Creek, Ontario, in the 1970s –1990s,
+discussed below (Sec. 2.1). First, a crown fire threshold was identified
+between three treatment types. The threshold was then used to for
+calibration, using 2) an SFC-based ROS model as well as 3) additional
+models calibrated using Byram's intensity equation. The inclusion of
+ladder fuels as well as the estimated *M* value were further evaluated
+using a sensitivity analysis of a refitted crown fire occurrence model.
+The final step leads to a new concept of crown fire, where flaming
+transitions between canopy fuel strata can be tested and defined
+individually. All of these relate to stand level estimates of fuel
+structure using mean measured values. These techniques are relatively
+simple and operationally practical, but may mask significant impacts of
+within-stand heterogeneity and spatial pattern of fuel arrangement (e.g.
+clumping, proximity to overstory trees, etc.).
 
 ### 2.1 Study area: Sharpsand Creek, Ontario
 
