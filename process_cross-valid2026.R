@@ -1229,6 +1229,6 @@ seeds <- list(seed.a, seed.b, seed.c, seed.d, seed.e, seed.f, seed.g, seed.h, se
 
 #Final model output - WTF? why m16
 model16 <- glm(f15, data=fd7, family=binomial)
-final.mod <- model16
+#final.mod <- model16
 
-write.csv(final.mod$coefficients, './tables/final_mod.csv')
+#write.csv(final.mod$coefficients, './tables/final_mod.csv')
