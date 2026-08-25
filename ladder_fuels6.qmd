@@ -845,7 +845,7 @@ structure using mean measured values.
 
 The results from the experimental fires at Sharpsand Creek, Ontario have
 been analyzed in several studies but remain useful for the present
-purposes. As previously described, 27 plots in three separate treatment
+analysis. As previously described, 27 plots in three separate treatment
 types were burned between 1974 and 1991 at this site north of Thessalon,
 Ontario. The original unaltered stand (immature: IM) consisted of
 naturally regenerated jack pine following a 1948 wildfire, with dense
@@ -899,11 +899,12 @@ in supplemental material.
 
 ### 2.2 Crowning behaviour and ladder fuel consumption
 
-The most challenging value for the analysis is $FC_L$, the consumption
-of ladder fuels, as this is seldom measured (though sometimes estimated
-indirectly) in experimental studies. Stocks [-@stocks1987] presented
-estimated dead roundwood fuel consumption for the original IM
-experimental fires, and these values are used presently for calibration.
+The most challenging value for the analysis is $FC_L$, the measurable
+consumption of ladder fuels, as this is seldom measured directly (though
+sometimes estimated indirectly) in experimental studies. Stocks
+[-@stocks1987] presented estimated dead roundwood fuel consumption for
+the original IM experimental fires, and these values are used presently
+for model calibration.
 
 For this analysis, ladder fuel influence was quantified using equation 6
 to scale the estimated ladder fuel consumption (dead canopy fuel \< 1
@@ -911,12 +912,13 @@ cm; Stocks 1987) and derive $FC_{SE}$. The vertical position of fine
 standing ladder fuels was assumed to be the crown centroid of the mean
 dead snag canopy layer at the stand level:
 
-$$C_L=CBH_{sap}+\frac {height_{sap}-CBH_{sap}}{2}$$\[eq. 8\]
-[@perrakis2023b]; $CBH_{sap}$ and $height_{sap}$ are the mean crown base
-height and mean height of the dead saplings, respectively. However,
-since $CBH_{sap}$ was unknown in our Sharpsand calibration dataset, we
-first assumed a crown ratio [CR; @holdaway1986] of 0.5; to test the
-sensitivity of this assumption, we did a second analysis with a CR of 1.
+$$C_L=CBH_{sap}+\frac {SH_{sap}-CBH_{sap}}{2}$$\[eq. 8\]
+[@perrakis2023b]; $CBH_{sap}$ and $SH_{sap}$ are the canopy base height
+and stand height of the dead sapling-size tree layer, respectively.
+However, since $CBH_{sap}$ was unknown in our Sharpsand calibration
+dataset, we first assumed a crown ratio [CR; @holdaway1986] of 0.5; to
+test the sensitivity of this assumption, we did a second analysis with a
+CR of 1.
 
 ![](files/FSG-snags-crown-AI.png)
 
@@ -927,31 +929,34 @@ Sharpsand Creek. Diagram rendered using AI.*
 
 #### 2.2.1 Estimation 1 - Expert opinion, Sharpsand Creek (ON)
 
-The first calibration method (Method 1) involved expert opinion from
-previous studies. As noted above, Cruz et al. [-@cruz2004a] estimated
-that the abundant ladder fuels characterizing the Sharpsand Creek
-stands, in the form of standing dead trees (including dead branches,
-bark flakes, and fine stemwood) amounted to a 'fuel strata gap' of 2 m,
-compared to approximately 4 m for the actual LCBH (*z*). We used those
-values as a first estimate along with equation 5 to investigate a
+The first calibration method (Method 1) involved expert opinion of
+ladder fuel influence from previous studies. As noted above, Cruz et al.
+[-@cruz2004a; -@cruz2006] estimated that the abundant ladder fuels
+characterizing the Sharpsand Creek IM stands, in the form of standing
+dead trees (including dead branches, bark flakes, and fine stemwood)
+amounted to a 'fuel strata gap' (FSG) of 2 m, compared to 4 m for the
+estimated LCBH (*z*). Since the FSG for the TH stands remained equal to
+the LCBH, i.e. 4 m, we can attribute the difference primarily to the
+presence of dead ladder fuels. We used those values (IM: FSG=2 m; TH:
+FSG=4 m) as a first estimate along with equation 5 to investigate a
 potential value for the ladder fuel multiplier *M*.
 
 #### 2.2.2 Estimations 2 and 3 - Analyis of crowning thresholds, Sharpsand Creek (ON)
 
 For the second and third estimation methods, we used the Sharpsand
 Creek, Ontario experiments once again, including the full complement of
-immature (IM), thinned (TH), and semi-mature (SM) treatments in our
-analysis [@stocks1987; @mcrae2017; @perrakis2023b]. This site, with many
-fires in stands that differed primarily by age (time since wildfire) and
-thinning treatment (for the TH stands), provided the ideal test case for
-assessing threshold crown fire conditions and ladder fuel effects. We
-used logistic regression to identify the crown fire thresholds between
-weather indices and treatments. This was initially done using the
-initial spread index (*ISI*) from the FWI System [@vanwagner1987]; we
-also tested for thresholds using a stand-adjusted version of the ISI
-($ISI_{sa}$), which was simply the ISI equation's f(F) function fitted
-to Wotton and Beverly's [@wotton2007] stand-adjusted moisture content
-($mc_{sa}$) [@perrakis2026].
+immature (IM), thinned (TH), and semi-mature (SM) treatments
+[@stocks1987; @mcrae2017; @perrakis2023b]. With many replicated fires in
+stands that differed primarily by age (time since natural regeneration)
+and thinning treatment (for the TH stands), these experiments provided
+the ideal test case for assessing threshold crown fire conditions and
+ladder fuel effects. We used logistic regression to identify the crown
+fire thresholds, testing both weather indices and treatments. The main
+weather variable was the initial spread index (*ISI*) from the FWI
+System [@vanwagner1987]; we also tested a stand-adjusted version of the
+ISI ($ISI_{sa}$), which was simply the ISI equation's f(F) function
+fitted to Wotton and Beverly's [@wotton2007] stand-adjusted moisture
+content ($mc_{sa}$) [@perrakis2026].
 
 We then evaluated the crowning thresholds in terms of critical FC to
 solve for the ladder fuel multiplier (*M*) using two different
@@ -963,7 +968,7 @@ the Sharpsand crown fire thresholds. Using Byram's [-@byram1959]
 fireline intensity equation along with predicted ROS, it was simple to
 solve for *M* using measured and estimated SFC and $FC_L$ values.
 
-#### 2.2.3 Evaluation using a crown fire model \[incomplete\]
+#### 2.2.3 Evaluation using a crown fire model
 
 For the final method of examining the theoretical relationships, we
 returned to a recent crown fire analysis and attemped to refit the
@@ -971,47 +976,71 @@ relationship between fire environment variables and crown fire
 occurrence. As in Perrakis et al. [-@perrakis2023b], we used 10 m open
 wind speed, estimated litter and fine dead surface fuel moisture (as
 represented by either the FFMC or the stand-adjusted moisture content,
-$mc_{sa}$). This time, rather than subjectively estimating the FSG
-adjustments to LCBH in certain stands, we used eq. 7 to estimate the
-ladder fuel contributions of standing dead fuels, based on the measured
-or estimated \< 1 cm elevated roundwood (dead) consumption values. We
-tested only the best-performing model forms for this purpose, which had
-log-transformed SFC values and a 3/2 exponent for the LCBH term. The
-multiplier *M* in this case was held inside the log-transformed SFC
-term; thus, the respective coefficient was fitted to
-$log(SFC+FC_{SE} \cdot M)$. The initial value of M in this fitted model
-was taken from the previous estimates, but a sensitivity analysis step
-also tested several other values of M in addition to the mean calibrated
-value.
+$mc_{sa}$) as well as the FSG. This time, rather than subjectively
+estimating the FSG adjustments to LCBH in stands with significant
+standing dead ladder fuels, we used eqs. 5–8 to calculated the modelled
+ladder fuel contributions. We tested only the best-performing model
+forms from the previous analysis for this purpose [@perrakis2023b],
+which had log-transformed SFC values and a 3/2 exponent for the FSG/LCBH
+term. Model runs were tested in a randomized k-fold cross-validation
+with 4 folds and 1000 iterations, using the 'vtreat' package to set up
+appropriate training/testing combinations . Model runs were compared
+using 1) the initial subjectively-modified FSG dataset; 2) unaltered
+FSG=LCBH (measured or estimated) with ladder fuel incorporated as
+*FC~SE~* (eq. 8, *M*=1); and 3) unaltered FSG=LCBH with ladder fuels
+incorporated as *FC~SE~*, with *M* fitted to the calibrated value from
+Section 2.2. Since several methods were used to derive *M*, a
+sensitivity analysis step also tested several additional possible values
+of M in addition to the mean calibrated value.
+
+In dual-layer canopy stands, the FSG represented only the base of the
+canopy fuel layer, and crown fire occurrence was characterized as
+significant torching or crowning in the lower layer (Layer 1; see Sec.
+2.3, below)
 
 ### 2.3 Dual canopy structure
 
 Two sites in our database were characterized by dual layer canopy
 structure: Kenshoe Lake, Ontario (KL) [@stocks1989] and International
 Crown Fire Modeling Experiment, Northwest Territories (ICFME)
-[@alexander2004]. Both sites were boreal forests with an overstory of
-jack pine and a midstory and understory of black spruce. Stand structure
+[@alexander2004]. Both sites consisted of boreal conifer forests with an
+overstory of jack pine and a midstory layer of black spruce; these are
+considered Layer 1 (L1; spruce) and Layer 2 (L2; pine). Stand structure
 calculations for both sites is summarized by Perrakis et al.
-[@perrakis2023b] (Supplemental Material).
+[-@perrakis2023b] (Supplemental Material).
 
 Fires were designated by original experimental observers by type of fire
 with respect to canopy involvement. For simple (single layer canopy)
 stands, this consisted of surface (S) or crown (C) fire options,
 regardless of type of crown fire (e.g., Passive or Active)
-[@vanwagner1977a]. For two sites with dual layer canopy structure, ,
-there was also a third possibility, midstory crown fire only (MC).
+[@vanwagner1977a]. For the KL and ICFME sites, there was also a third
+possibility, midstory crown fire only (MC), where significant torching
+or crowning in the spruce layer was observed, but crowning did not
+extent to the upper canopy pine layer.
 
-## 
+For applying the FCSE concept to dual layer stands, several additional
+steps were required to test for upper canopy crowning.
+
+Test for L1 crowning
+
+The first step is to test for crowning in the spruce layer. Standing
+dead ladder fuels, if significant in number, must be incorporated using
+the FCSE and M (if needed) calculations.
+
+Estimate actual surface fuel influence in L2 crowning
+
+Estimate FMC influence; actual FMC, convert to dead fuel heat release
+equivalent using Babrauskas.
 
 ## 3. Results
 
 #### 3.1 Crowning thresholds and critical ROS, Sharpsand Creek
 
-The Sharpsand experimental fire dataset consisted of the 27 fires: 14
-IM, 5 TH, and 8 SM treatments. These tests revealed *ISI* and treatment
-as significant predictors (⍺=0.05), and *ISI~sa~* and treatment as
-possibly significant predictors (⍺=0.1) of crown fire occurrence (Figure
-X).
+The Sharpsand experimental fire dataset consisted of the 27 fires across
+all treatments: 14 IM, 5 TH, and 8 SM treatments. These tests revealed
+*ISI* and treatment as significant predictors (⍺=0.05), and *ISI~sa~*
+and treatment as possibly significant predictors (⍺=0.1) of crown fire
+occurrence (Figure X).
 
 ##### 3.1.1 Critical ROS for crowning
 
@@ -1184,13 +1213,13 @@ Table x. Calculated estimates for *M*, the ladder fuel multiplier
 m.table %>% as.tibble()
 ```
 
-#### Appendix: Empirical crown fire analysis \[not sure if we include\]
+#### 3.3 Empirical crown fire analysis 
 
 \[Not yet updated\] Finally, we reanalyzed the experimental crown fire
 dataset using Monte Carlo cross-validation, comparing models with
-$log(SFC)$, $log(SFC + FC_{SE})$, and $log(SFC + FC_{SE} \cdot M)$. The
-starting value for M was 4 \[to update and redo\], a rough mean of the
-previous estimates.
+different forms of consumption data: $log(SFC)$, $log(SFC + FC_{SE})$,
+and $log(SFC + FC_{SE} \cdot M)$. The starting value for M was
+`r grand.mean.M %>% round(0)` , a rough mean of the previous estimates.
 
 As show in the table, the cross-validation evidence supports the
 existence of M \> 1. Both the FFMC- and MC~SA~-based models (7, 8) using
@@ -1266,6 +1295,10 @@ have altered tree or overall stand height or LCBH; however, these values
 were not measured precisely. The sensitivity of the equations to small
 differences in these measures results in a certain amount of inherent
 uncertainty with this post-hoc study design.
+
+-The multiplier *M* in this case was held inside the log-transformed SFC
+term; thus, the respective coefficient was fitted to
+$log(SFC+FC_{SE} \cdot M)$.
 
 -A bit more sensitivity analyis on M is likely required. Probably need
 to rerun M estimates using LCBH=4 for control plots and LCBH=4.5 for
