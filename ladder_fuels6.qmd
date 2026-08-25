@@ -897,11 +897,6 @@ ladder fuels. This modified LCBH measure was termed the Fuel Strata Gap
 descriptions of fire type label classes and interpretations can be found
 in supplemental material.
 
-Fires were designated by original experimental observers by type of fire
-with respect to canopy involvement: surface only (S); crown fire -
-midstory spruce stratum (MC); or crown fire - midstory spruce and
-overstory pine strata (C). The
-
 ### 2.2 Crowning behaviour and ladder fuel consumption
 
 The most challenging value for the analysis is $FC_L$, the consumption
@@ -991,7 +986,20 @@ value.
 
 ### 2.3 Dual canopy structure
 
-dfdf
+Two sites in our database were characterized by dual layer canopy
+structure: Kenshoe Lake, Ontario (KL) [@stocks1989] and International
+Crown Fire Modeling Experiment, Northwest Territories (ICFME)
+[@alexander2004]. Both sites were boreal forests with an overstory of
+jack pine and a midstory and understory of black spruce. Stand structure
+calculations for both sites is summarized by Perrakis et al.
+[@perrakis2023b] (Supplemental Material).
+
+Fires were designated by original experimental observers by type of fire
+with respect to canopy involvement. For simple (single layer canopy)
+stands, this consisted of surface (S) or crown (C) fire options,
+regardless of type of crown fire (e.g., Passive or Active)
+[@vanwagner1977a]. For two sites with dual layer canopy structure, ,
+there was also a third possibility, midstory crown fire only (MC).
 
 ## 
 
