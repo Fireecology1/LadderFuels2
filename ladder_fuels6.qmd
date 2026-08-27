@@ -970,33 +970,34 @@ solve for *M* using measured and estimated SFC and $FC_L$ values.
 
 #### 2.2.3 Evaluation using a crown fire model
 
-For the final method of examining the theoretical relationships, we
-returned to a recent crown fire analysis and attemped to refit the
-relationship between fire environment variables and crown fire
-occurrence. As in Perrakis et al. [-@perrakis2023b], we used 10 m open
-wind speed, estimated litter and fine dead surface fuel moisture (as
-represented by either the FFMC or the stand-adjusted moisture content,
-$mc_{sa}$) as well as the FSG. This time, rather than subjectively
-estimating the FSG adjustments to LCBH in stands with significant
-standing dead ladder fuels, we used eqs. 5–8 to calculated the modelled
-ladder fuel contributions. We tested only the best-performing model
-forms from the previous analysis for this purpose [@perrakis2023b],
-which had log-transformed SFC values and a 3/2 exponent for the FSG/LCBH
-term. Model runs were tested in a randomized k-fold cross-validation
-with 4 folds and 1000 iterations, using the 'vtreat' package to set up
-appropriate training/testing combinations . Model runs were compared
-using 1) the initial subjectively-modified FSG dataset; 2) unaltered
-FSG=LCBH (measured or estimated) with ladder fuel incorporated as
-*FC~SE~* (eq. 8, *M*=1); and 3) unaltered FSG=LCBH with ladder fuels
-incorporated as *FC~SE~*, with *M* fitted to the calibrated value from
-Section 2.2. Since several methods were used to derive *M*, a
+For the final method of testing the theoretical relationships, we
+returned to a recent crown fire analysis [@perrakis2023b] and attempted
+to refit the model with the addition of ladder fuel influence. As in the
+initial study, we used 10 m open wind speed, estimated litter and fine
+dead surface fuel moisture (as represented by either the FFMC or the
+stand-adjusted moisture content, $mc_{sa}$), SFC, and the FSG. This
+time, rather than subjectively estimating the FSG adjustments to LCBH in
+stands with significant standing dead ladder fuels, we used eqs. 5–8 to
+calculated the modelled ladder fuel contributions to SFC. We tested only
+the best-performing model forms from the previous analysis for this
+purpose [@perrakis2023b], which had log-transformed SFC values and a 3/2
+exponent for the FSG/LCBH term. Model runs were tested in a randomized
+k-fold cross-validation with 4 folds and 1000 iterations, using the
+'vtreat' package to set up appropriate training and testing combinations
+[@mount2018]. Model runs were compared with several LF possibilities: 1)
+the initial subjectively-modified FSG dataset, with FSG \< LCBH at three
+sites with \> 1000 s ha^-1^ of standing dead LF [@perrakis2023b]; 2)
+unaltered FSG=LCBH (measured or estimated), with ladder fuel
+incorporated as *FC~SE~* (eq. 8, *M*=1); and 3) unaltered FSG=LCBH with
+ladder fuels incorporated as *FC~SE~*, with *M* fitted to the calibrated
+value from Section 2.2. Since several methods were used to derive *M*, a
 sensitivity analysis step also tested several additional possible values
-of M in addition to the mean calibrated value.
+of M in addition to the mean empirically-calibrated value.
 
-In dual-layer canopy stands, the FSG represented only the base of the
-canopy fuel layer, and crown fire occurrence was characterized as
-significant torching or crowning in the lower layer (Layer 1; see Sec.
-2.3, below)
+In dual-layer canopy stands, the initial FSG represented only the base
+of the lower canopy fuel layer; modelled crown fire occurrence was
+characterized as significant torching or crowning in the lower layer
+only in these cases (Layer 1; see Sec. 2.3, below).
 
 ### 2.3 Dual canopy structure
 
@@ -1021,16 +1022,26 @@ extent to the upper canopy pine layer.
 For applying the FCSE concept to dual layer stands, several additional
 steps were required to test for upper canopy crowning.
 
-Test for L1 crowning
+*a) Test for L1 crowning*
 
 The first step is to test for crowning in the spruce layer. Standing
 dead ladder fuels, if significant in number, must be incorporated using
 the FCSE and M (if needed) calculations.
 
-Estimate actual surface fuel influence in L2 crowning
+Inputs: WS, LCBH (L1), SFC, mc
 
-Estimate FMC influence; actual FMC, convert to dead fuel heat release
-equivalent using Babrauskas.
+*b) Estimate actual surface fuel influence in L2 crowning*
+
+Inputs: SFC, LCBH (L1), SH (L1)
+
+*c) Estimate CFC and FMC influence;*
+
+Inputs: actual or modelled CFC, FMC
+
+convert to dead fuel heat release equivalent using Babrauskas.
+
+*d) Finally, calculate the probability of crowning (vertical flame
+transition) using the CFO model*
 
 ## 3. Results
 
@@ -1213,7 +1224,7 @@ Table x. Calculated estimates for *M*, the ladder fuel multiplier
 m.table %>% as.tibble()
 ```
 
-#### 3.3 Empirical crown fire analysis 
+#### 3.3 Empirical crown fire analysis
 
 \[Not yet updated\] Finally, we reanalyzed the experimental crown fire
 dataset using Monte Carlo cross-validation, comparing models with
@@ -1348,6 +1359,12 @@ in-stand wind [@banerjee2020]
 
 Method could also be used to estimate influence of dead branch fuel
 below LCBH, bark flakes, arboreal lichens, or similar material.
+
+The previous analysis already showed that using the LCBH alone with no
+allowance for LF was inferior to the FSG, even though it was
+subjectively assigned. Present analysis shows that incorporating
+estimated standing dead LF (based on 1 cm dead branchwood consumption)
+yields slightly superior performance while avoiding subjectivity.
 
 Surface fire ROS model is an important component of all calculations.
 Although the SROS models we present are imprecise and gloss over
