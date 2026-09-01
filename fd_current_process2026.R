@@ -7,9 +7,8 @@
 rm(list=ls())
 
 .libPaths("C:/Dan/RPackages")
-require(dplyr)
-require(stringr)
-require(lubridate)
+
+library(tidyverse)
 
 setwd("C:/Dan/_Remote_projects/LadderFuels2")
 
@@ -64,20 +63,25 @@ fd2$MC.SA_dens[93:94] <- 1  #RWP B1 stands heavily cut over
 #Kenshoe Lake
 
 #Main dataset in database-crowning of mid-story spruce: FSG=2m same as VW and Cruz
-ken.LCBH <- 2
-fd2$FSG[kenshoe] <- ken.LCBH
+ken.sp.LCBH <- 2
+fd2$FSG[kenshoe] <- ken.sp.LCBH
 #make these crown fires: fires described by Stocks as 'various degrees of torching or ICF'
 ken.cfList <- c(2, 3, 5, 9, 11, 12) 
 new.CFI <- kenshoe %in% ken.cfList %>% as.integer %>% as.factor()
-fd2$CFI[kenshoe] <- new.CFI
+fd2$CFI[kenshoe] <- new.CFI  #chg CFI to reflect subcanopy spruce crowning
 
 #LCBH analysis from raw data mixed-effects modelling
 ken.ME0 <- read.csv("./files/kenshoe_crown_sharma4.csv")
 ken.ME <- ken.ME0 %>%   #full stand vars from ME modelling
   mutate(ba.per.bs=1-ba.perc,  #percent bs by BA
-         st.per.bs=s.ha.bs/(s.ha.jp+s.ha.bs)) %>%   #percent bs by density
+         st.per.bs=s.ha.bs/(s.ha.jp+s.ha.bs), #percent by density?
+         sCD.sp=SH.sp-ken.sp.LCBH, #spruce crown depth
+         CL=ken.sp.LCBH+sCD.sp/2, #spruce centroid
+         psp.FSG=sLCBH.jp-CL) %>%  #pine-spruce FSG final
   select(-X)
 
+#write.csv(ken.ME %>% select(plot, psp.FSG), './files/kenPSPFSG.csv')
+#write.csv(ken.ME, './files/ken_ME.csv')
 
 #################################Process 3
 
@@ -124,9 +128,10 @@ baseline.snags <- 250
 #Ladder fuel scaling
 #load(file='c:/Dan/_Fire_tools/r_scripts_functions/lf-sfc.rda') #check if it works
 
-#to here Aug 26 2026 - rename functions to match paper text
-lf.fcg <- function(zg, zl, fcl) {
-  (zg/(zg-zl))^1.5 * fcl
+#
+FCse <- function(z, Cl, fcl) {
+  (z/(z-Cl))^1.5 * fcl
+  #was lf.cfg, with z as zg, Cl as zl
 }
 
 scale.exponent <- 3/2   #3/2 per Van Wagner, or 5/3 as per McCaffrey
@@ -136,7 +141,7 @@ sh.new.ctrl <- filter(sh.new, TRT=='ctrl') %>%
          cfc.d.stem=cfc.d * 10000/s.ha.d,   #kg/m2  * 10000 m2/ha  / s/ha   = kg/stem
          excess.snag.prop= (s.ha.d-baseline.snags)/s.ha.d,
          snag.centroid=HT.D/2,
-         sfc.lf=lf.fcg(zg=FSG, zl=snag.centroid, fcl=cfc.d*excess.snag.prop),   #using lf.sfc function
+         sfc.lf=FCse(z=FSG, Cl=snag.centroid, fcl=cfc.d*excess.snag.prop),   #using lf.sfc function
          sfc.lf.stem=sfc.lf/s.ha.d) 
 
 sh.new.th <- filter(sh.new, TRT=='th') %>%
@@ -146,7 +151,7 @@ sh.new.th <- filter(sh.new, TRT=='th') %>%
            s.ha.d > baseline.snags ~ (s.ha.d-baseline.snags)/s.ha.d,
            s.ha.d <= baseline.snags ~ 0),  #avoid negative values
          snag.centroid=HT.D/2,
-         sfc.lf=lf.fcg(zg=FSG, zl=snag.centroid, fcl=cfc.d*excess.snag.prop),   #using lf.sfc func
+         sfc.lf=FCse(z=FSG, Cl=snag.centroid, fcl=cfc.d*excess.snag.prop),   #using lf.sfc func
          sfc.lf.stem=sfc.lf/s.ha.d)
 
 #mean additional SFC per dead snag (not used)
@@ -157,6 +162,7 @@ sh.new3 <- full_join(sh.new.ctrl, sh.new.th) %>%
   select(-c(sfc.lf.stem, excess.snag.prop)) %>%
   arrange(Plot)
 
+##To here Aug 2026 - analysis moved to ladder_fuels7.qmd
 ##copied sfc.lf values to firedataMay2023b May 28, 2023
 #neex to update; switched to sh.new3 July 14, 2023 (review phase of CFO paper), and didn't update LF
 
@@ -259,20 +265,9 @@ fd3$Fire.type[some.torch.sf] <- 'S'
 #end Sharpsand
 
 #ICFME
+#updated Aug 2026
 
 #order has been corrected to match Alexander et al 2004 paper; 
-#Corrected order: A, 1-8a, 8b, 9; (different from original Cruz DB order)
-icfme.nums <- fd3$num[icfme]   #nums from icfme fires
-icfme.fireA <- filter(fd3[icfme,], str_detect(fire, 'NWT-A'))  #pull out icfme fire A
-
-icfme.arrange <- fd3[icfme,] %>%   #arrange icfme fires in order
-  filter(num %in% icfme.nums[-1]) %>%  #arrange all fires except fire A
-  arrange(fire)
-
-fd3[icfme,] <- bind_rows(icfme.fireA, icfme.arrange) %>%  #recombine and fix icfme records in fd3
-  mutate(num=icfme.nums)
-
-sfc.icfme.old <- fd3$SFC[icfme]  #Get original sfc before messing with it
 
 #Constants
 icfme.lcbh.jp <- c(8.9, 8.1, 8.6, 8.2, 7, 5.2, 7.9, 8.5, 7.4, 7.4, 8.1) #LCBH
@@ -313,6 +308,7 @@ icfme.snag.51 <- function(dbh) {
   return(Y)
 }
 
+#compute per tree CFC and per plot snag FC
 icfme.snag.wt <- icfme.snag.05(icfme.snagDBH.total) + icfme.snag.51(icfme.snagDBH.total)  #kg of fine fuel per tree
 icfme.snag.cfc <- icfme.snag.wt * icfme.snags / 10000   #kg/m^2 cfl per plot
 
@@ -320,20 +316,26 @@ icfme.snag.cfc <- icfme.snag.wt * icfme.snags / 10000   #kg/m^2 cfl per plot
 #icfme.snag.cfc.subCrown
 
 #Process icfme snag SFC.LF 
-icfme.snags.add <- filter(fd3, num %in% icfme) %>%    #create new records for ICFME; all plots
-  select(num, fire, MC.SA, FSG, SH, ws, FFMC, DMC, SFC, CFI, MC.FFMC) %>%
-  mutate(icfme.snags,
-         icfme.snagHT.mean,
-         cfc.d=icfme.snag.cfc,
-         excess.snag.prop = (icfme.snags-baseline.snags)/icfme.snags,
-         bs.lcbh = icfme.cbh.bs,    #just distance to BS LCBH or jp LCBH for p3 & p4
-         icfme.snag.cfc.subCrown = case_when(  #need special rules when snags are below fsg and above
-           icfme.cbh.bs < icfme.snagHT.mean ~ icfme.cbh.bs/icfme.snagHT.mean * icfme.snag.cfc,
-           icfme.cbh.bs > icfme.snagHT.mean ~ icfme.snag.cfc),
-         snag.centroid = case_when(  #
-           icfme.snagHT.mean > bs.lcbh ~ bs.lcbh/2,  #for most icfme plots, snags are taller than bs LCBH, so use the prop
-           icfme.snagHT.mean < bs.lcbh ~ icfme.snagHT.mean/2),
-         sfc.lf = lf.fcg(zg=bs.lcbh, zl=snag.centroid, fcl=icfme.snag.cfc.subCrown * excess.snag.prop))   
+icfme.lf <- data.frame(      #icfme.snags.add <-filter(fd3, num %in% icfme) %>%    #create new records for ICFME;
+  #select(num, fire, MC.SA, FSG, SH, ws, FFMC, DMC, SFC, CFI, MC.FFMC) %>%
+  num=icfme,
+  fire=fd %>% filter(num %in% icfme) %>% select(fire),
+  s.ha.d=icfme.snags, #s/ha
+  SH.d=icfme.snagHT.mean,
+  cfc.d=icfme.snag.cfc,
+  excess.snag.prop = (icfme.snags-baseline.snags)/icfme.snags) %>%
+  #
+  mutate(LCBH = icfme.cbh.bs,    #just distance to BS LCBH or jp LCBH for p3 & p4
+  cfc.subCrown = if_else(  #need special rules when snags are below fsg and above
+           LCBH < SH.d, LCBH/SH.d * cfc.d,
+           cfc.d),
+  Cl = if_else(  #
+           SH.d > LCBH, LCBH/2,  #for most icfme plots, snags are taller than bs LCBH, so use the prop
+           SH.d * 0.75), #assume CR of 0.5
+  fc.se = FCse(z=LCBH, Cl=Cl, fcl=cfc.subCrown * excess.snag.prop))   
+
+
+#To here Aug 31 2026
 
 #To here May 28 2023; copied SFC.LF to fire_data_may2023b
 

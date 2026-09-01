@@ -534,5 +534,7 @@ final.mod.ffmc <- glm(f15, data=fd7, family=binomial)
 final.mod.sa <- glm(f16, data=fd7, family=binomial)
 
 #Use these Aug 19, 2026
-# write.csv(final.mod.ffmc$coefficients, './files/finmod_ffmc.csv')
-# write.csv(final.mod.sa$coefficients, './files/finmod_sa.csv')
+# save(final.mod.ffmc, file='./files/finmod_ffmc.rda')
+# save(final.mod.sa, file='./files/finmod_sa.rda')
+
+#write.csv(fd7, './files/fd7.csv')
