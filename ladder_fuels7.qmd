@@ -193,6 +193,9 @@ sh.full <- read.csv('c:/Dan/_Remote_projects/ccp_git/ccp-cfi/sharp_full.csv') %>
   left_join(sh.fires %>% filter(Exp %in% c('Thin', 'Imm')), by='Plot') %>%
   select(-c(fire, Date, num, DC, FWI, CFI2, Exp)) 
 
+#Modify as needed
+sh.cr <- 0.42  #0.42? Try 0.5 and 0.75
+
 #CFL values for < 1 cm dead ladder fuels from Stocks 1987 - IM/ctrl plots only (ones with high LF)
 lf.cfl <- c(0.142, 0.073, 0.313, 0.183, 0.133, 0.146, 0.131, 0.131,
               0.176, 0.182, 0.151, 0.218, 0.084) #p11 twice for 11a, 11b
@@ -226,8 +229,6 @@ lf.cfl2 <- c(0.142, 0.073, 0.313, 0.183, 0.133, 0.146, 0.131, 0.131,
 sharp.cr <- function(dbh) {0.3705 + 0.009196*dbh} # not used
 #mean CR of 0.42 for live trees; assume same for dead
 
-sh.cr <- 0.5  #0.42?
-
 excess.snags <- 250 #reduce snag influence; assume all plots have unknown snags
 #not used here; used in CFI reanalysis
 
@@ -248,29 +249,36 @@ sh.ctrl <- filter(sh.full, TRT=='ctrl') %>%
 
 #simplified df for analysis - add SFC and fc.se, keep only what's needed
 sh.ctrl.model <-sh.ctrl %>%
-  select(Plot, ISI, isi.m, FSG, SFC, cfc.d, 
-         fc.se.ctrl, fc.se.ctrl2, CFI=CFI1) %>%
-  mutate(sfc.net=SFC+fc.se.ctrl,
-         sfc.net2=SFC+fc.se.ctrl2)
+  select(Plot, ISI, BUI, isi.m, FSG, SFC, cfc.d, 
+         fc.se=fc.se.ctrl, fc.se.cr1=fc.se.ctrl2, CFI=CFI1) %>%
+  mutate(TRT='IM', sfc.net=SFC+fc.se,
+         sfc.net2=SFC+fc.se.cr1)
 
 # cfc per dead stem, kg
 cfc.dstem <- summarize(sh.ctrl, mean(cfc.d.stem)) %>% pull()
 
+im.d.s <- sh.ctrl %>% summarize(sd(s.ha.d))
+
+#TH plots
 sh.th0 <- filter(sh.full, TRT=='th')
 
 #Use mean values for missing data
-sh.s.ha.d.th <- filter(sh.th0, !Plot %in% c(8,9)) %>%
+s.ha.d.th <- filter(sh.th0, !Plot %in% c(8,9)) %>%
   summarize(mean(s.ha.d)) 
 
+#standard dev for 3 actual dead s/ha measures
+th.d.s <- filter(sh.th0, !Plot %in% c(8,9)) %>%
+  summarize(sd(s.ha.d)) 
+
 #Thinned plots, mean dead stems/ha where data was missing
-sh.th <- mutate(sh.th0, 
+sh.th1 <- mutate(sh.th0, 
                     s.ha.d=ifelse(
-                      Plot %in% c(8, 9), sh.s.ha.d.th, s.ha.d))
+                      Plot %in% c(8, 9), 
+                      s.ha.d.th, s.ha.d) %>% as.numeric() )
                         # fix s.ha.d value where no data; 
 
-
 #Process LF in TH stands
-sh.th <- sh.th0 %>% 
+sh.th <- sh.th1 %>% 
   mutate(cfc.d.stem=cfc.dstem, #use cfc per tree in ctrl plots 
          #to estimate cfc in thinned plots
          cfc.d=cfc.d.stem * s.ha.d / 10000, 
@@ -281,10 +289,15 @@ sh.th <- sh.th0 %>%
          fc.se.stem=fc.se.th/s.ha.d,  #surf.equivalent FC per stem
          fc.se.th2=FCse(z=FSG, Cl=cen.l2, fcl=cfc.d)) #alt fc.se with CR of 1
 
-sh.th.model <- sh.th %>% select(Plot, ISI, isi.m, FSG=FSG1, SFC, fc.se.th, 
-                           fc.se.th2, CFI=CFI1) %>% 
-  mutate(sfc.net=SFC+fc.se.th,
-         sfc.net2=SFC+fc.se.th2)
+sh.th.model <- sh.th %>% select(Plot, ISI, BUI, isi.m, FSG=FSG1, 
+                                SFC, fc.se=fc.se.th, 
+                                fc.se.cr1=fc.se.th2, CFI=CFI1) %>% 
+  mutate(TRT='TH', sfc.net=SFC+fc.se,
+         sfc.net2=SFC+fc.se.cr1)
+
+sh.table <- full_join(sh.ctrl.model, sh.th.model)
+
+sh.sumtable <- sh.table %>% summarize
 
 #For CFI reanalysis, need to recalculate FCse with 'excess snags' number correction
 #then replace SFC with SFC.net (SFC4?), redo CFI model; FSG unchanged
@@ -366,8 +379,10 @@ mod3.co<-use.mod3$coefficients
 
 
 # summary(use.mod)  #
-summary(multcomp::glht(use.mod2,
-                        multcomp::mcp(ExpF='Tukey')))  #requires Exp as factor
+# summary(multcomp::glht(use.mod,
+#                         multcomp::mcp(ExpF='Tukey')))  #requires Exp as factor
+# summary(multcomp::glht(use.mod2,
+#                         multcomp::mcp(ExpF='Tukey')))  #requires Exp as factor
 
 
 ```
@@ -473,8 +488,9 @@ mcsa.val <- mean(sh.full$MC.SA2) #10.329 , using Density=2 for all
 ws.vals.sa <- c(5.493, 13.883)  #ws vals at mc.sa 10.329 to get thresh isim
 
 #FC_se_im;
-fc.se.im.mean <- mean(sh.ctrl.model$fc.se.ctrl)
-fc.se.im.mean2 <- mean(sh.ctrl.model$fc.se.ctrl2)
+fc.se.im.mean <- mean(sh.ctrl.model$fc.se)
+fc.se.mean.corr <- mean(sh.ctrl.model$fc.se) - mean(sh.th.model$fc.se)
+#fc.se.im.mean2 <- mean(sh.ctrl.model$fc.se.ctrl2)
 
 #First Method:  M7, M9c, using SFC (M7: ISI; M9c: ISI.sa)
 #
@@ -489,12 +505,12 @@ fc.se.im.mean2 <- mean(sh.ctrl.model$fc.se.ctrl2)
 #
 m7beta1 <- summary(m7.sros.ISI2SFC.mod)$coefficients[1]
 m7beta2 <- summary(m7.sros.ISI2SFC.mod)$coefficients[2]
-Mm7 <- (((m7beta1 * isi.thresh.th^2+m7beta2*sqrt(sfc.mean)-m7beta1*isi.thresh.im^2)/m7beta2)^2-sfc.mean)/fc.se.im.mean
+Mm7 <- (((m7beta1 * isi.thresh.th^2+m7beta2*sqrt(sfc.mean)-m7beta1*isi.thresh.im^2)/m7beta2)^2-sfc.mean)/fc.se.mean.corr
 #5.9817
 
 m9beta1 <- summary(m9c)$coefficients[1]
 m9beta2 <- summary(m9c)$coefficients[2]
-Mm9 <- (((m9beta1*isim.thresh.th^2+m9beta2*sqrt(sfc.mean)-m9beta1*isim.thresh.im^2)/m9beta2)^2-sfc.mean)/fc.se.im.mean
+Mm9 <- (((m9beta1*isim.thresh.th^2+m9beta2*sqrt(sfc.mean)-m9beta1*isim.thresh.im^2)/m9beta2)^2-sfc.mean)/fc.se.mean.corr
 #6.611
 
 #
@@ -547,13 +563,13 @@ colnames(modelMmsa) <- c('ROS.im', 'ROS.th', 'Method')
 
 solve.for.m1 <- mutate(modelMms, 
                         M=m.function(sfc=sfc.mean, ros.th=ROS.th,
-                              ros.im=ROS.im, fc.se.im=fc.se.im.mean))
+                              ros.im=ROS.im, fc.se.im=fc.se.mean.corr))
 #works!
 #Mean of 5.23
 
 solve.for.m2 <- mutate(modelMmsa, 
                         M=m.function(sfc=sfc.mean, ros.th=ROS.th,
-                              ros.im=ROS.im, fc.se.im=fc.se.im.mean))
+                              ros.im=ROS.im, fc.se.im=fc.se.mean.corr))
 
 m.table0 <- full_join(solve.for.m1, solve.for.m2) %>%
   select(Method, everything()) %>%
@@ -573,17 +589,257 @@ solve.m9 <- data.frame(Method='ROS & SFC m9c: ISI_sa ', ROS.im=NA, ROS.th=NA, M=
 #All 3 methods summarized
 #Table with all M estimates
 m.table <- bind_rows(solve.expert, solve.m7, solve.m9, m.table0) %>%
-  as_tibble()
-
+  as_tibble() %>%
+  #fires to include/cut
+  #cut M20, m11c, then exclude max/min
+  filter(!str_detect(Method, 'm20') & !str_detect(Method, 'm11c')) 
+  
 grand.mean.M <- m.table %>% summarize(mean(M))
-#7.2
-# Grand mean without max/min values is about 6.91
+#8.6
+# Overall mean/median without max/min values: 
 #Should also make same calcs for CR=1
 #Also, correct IM FC.se by subtracting mean FC_L in TH stands 
 
 #another tactic would be to make the case for NO M! (M=1)
 
 m.table
+
+#change CR to 0.75 (in the 'Calculate FC_L' section) and rerun to here
+#m.tablecr75 results:
+#m.table %>% filter(M> min(M) & M < max(M)) %>% summarize(mean(M))
+#10.915
+#median:
+#9.669
+
+#CR 0.42, as estimated 
+#m.tablecr42 results:
+#mean without max or min
+#7.87
+#median
+#7.52
+
+```
+
+### \[Table 1 - Sharpsand stand structure and fire differences\]
+
+```{r}
+#test for SFC differences
+#Boxplots:
+#SFC similar
+#BA similar
+#Density different
+
+require(ggpattern)
+
+sh.sharma <- read.csv('./files/sharp_simple.csv') %>%
+  select(-X) %>% 
+  mutate(TRT=if_else(Plot==16, 'ctrl', TRT)) %>%
+  arrange(Plot)
+
+sm.fires <- fd %>% filter(num %in% sharp.sm) %>% select(fire, SFC, ISI, BUI)
+
+#Fire and structure tests
+sh.tests <- fd %>% 
+  filter(num %in% c(sharp, sharp.sm, sharp.th)) %>% 
+  select(fire, num, ISI, BUI, SFC) %>%
+  mutate(Plot =c(1, 8:10, 15, 16, 2:7, 11, 11, 12:14, 17, 18, 121, 114:120),
+    TRT=case_when(
+    num %in% sharp ~ 'IM',
+    num %in% sharp.th ~ 'TH',
+    num %in% sharp.sm ~ 'SM'
+  ) %>% as.factor() ) %>%
+  mutate(TRT=fct_relevel(TRT, 'IM', 'TH', 'SM')) #correct order: IM, TH, SM
+
+sfc.test <- lm(SFC~TRT, data=sh.tests)
+# summary(multcomp::glht(sfc.test,
+#                         multcomp::mcp(TRT='Tukey')))
+
+#IM-TH NS; SM-IM and SM-TH differences sig.
+
+bui.test <-lm(BUI~TRT, data=sh.tests)
+#NS for all
+
+#ISI test
+isi.test <- lm(ISI~TRT, data=sh.tests)
+#NS for all
+
+
+library(ggsignif)
+
+#ISI, BUI, SFC boxplot
+sh.box1 <- pivot_longer(sh.tests %>% select(TRT, ISI, BUI, SFC), 
+                        cols=-TRT,
+                        names_to='Var', values_to='value')  %>%
+  mutate(Var=factor(Var, levels=c('ISI', 'BUI', 'SFC'))) #
+
+#significance
+#Only SFC contrasts are significant
+sig_results <- data.frame(
+  Var=c('SFC', 'SFC'),
+  g1 =c('IM', 'TH'),
+  g2 =c('SM', 'SM'),
+  label=c('***', '***')
+)
+
+#NS contrasts
+all_vars <- levels(sh.box1 %>% pull(Var))
+sig_vars <- unique(sig_results$Var)
+ns_vars <- setdiff(all_vars, sig_vars)
+
+ns.labels <- data.frame(Var=factor(ns_vars, levels=all_vars))
+
+#Bracket height
+y.max <-sh.box1 %>%
+  group_by(Var) %>%
+  summarize(y.top=max(value, na.rm=TRUE))
+
+ns.labels <- ns.labels %>% #fix NS labels so they don't overlap with data
+  left_join(y.max, by='Var') %>%
+  mutate(y.position =y.top *1.1)
+
+#Update sig_results df with actual data
+sig_results <- sig_results %>%
+  left_join(y.max, by='Var') %>%
+  group_by(Var) %>%
+  mutate(y.position=y.top + 0.08 *y.top*row_number()) %>%
+  ungroup()
+
+#Graph
+fire.plot <- ggplot(sh.box1, aes(x=TRT, y=value, fill=TRT)) +
+  geom_boxplot(
+        position=position_dodge(width=0.08),
+    width=0.7) +
+  scale_fill_manual(values=c('green3', 'orange','purple3')) +
+  stat_summary(fun='mean') +
+  geom_signif(
+    data=sig_results,
+    aes(xmin=g1, xmax=g2, annotations=label, y_position=y.position),
+    manual=TRUE, tip_length=0.01, textsize=4, inherit.aes=FALSE) +
+  geom_text(data=ns.labels, 
+            aes(x=-Inf, y=Inf, label='NS'),
+            hjust=-0.3, vjust=1.5, inherit.aes=FALSE) +
+  facet_wrap(~Var, scale='free_y') + 
+  labs(fill='Treatment') + #pattern='Variable'
+  theme_bw() +
+  scale_y_continuous(expand=expansion(mult=c(0.05, 0.12))) +
+  theme(legend.position='none') 
+
+
+sh.sm.table <- data.frame(s.ha=4375, s.ha.d=3830, dbh.l=8.79, dbh.l.sd=0.5, 
+                    dbh.d=3.6, dbh.d.sd=0.2, SH=12.8, SH.d=5.7, mBUI=54.3,
+                    sdBUI=14.7, CFIs=4, CFIpc=3, CFIac=1)
+
+sh.th.table <- data.frame(s.ha=sh.th %>% summarize(mean(s.ha.l)))
+#table data
+
+#Density boxplot:
+sh.model <- bind_rows(sh.ctrl.model, sh.th.model)
+sh.boxplot0 <- left_join(sh.sharma, sh.model, by='Plot') %>%
+  slice(-10) %>% #eleminate duplicate p11 here
+  select(-TRT.x) %>%
+  rename(TRT=TRT.y)
+
+#missing p8, p9 data from exp burns
+sh.p89 <- data.frame(Plot = c(8,9), TRT='TH', SFC=c(1.53, 1.15), BUI=c(55, 53))
+
+sh.tests2 <- bind_rows(sh.boxplot0, sh.p89) %>%
+  arrange(Plot) %>%
+  select(Plot, BALive=BA, BADead=BA.d, DBH, DBH.d, DensLive=s.ha.l, 
+         DensDead=s.ha.d, HT, LCBH, BUI=BUI, SFC=SFC, TRT) 
+
+
+#Tests: DensLive, DensDead, BALive, BADead
+DensL.test <- lm(DensLive~TRT, data=sh.tests2)
+#Sig different, **
+
+DensD.test <- lm(DensDead ~ TRT, data=sh.tests2)
+#Sig different, ***
+
+BAL.test <- lm(BALive ~ TRT, data=sh.tests2)
+#NS different
+
+BAD.test <- lm(BADead ~ TRT, data=sh.tests2)
+#Sig different, ***
+
+
+#tidy df to make violin plots possible
+sh.box2 <- pivot_longer(sh.tests2 %>% select(TRT, DensLive, DensDead, 
+                                             BALive, BADead), 
+                        cols=-TRT,
+                        names_to='Var', values_to='value') %>%
+  filter(Var %in% c('DensLive', 'DensDead', 'BALive', 'BADead'),
+         !is.na(value)) %>%
+  mutate(Var=factor(Var, levels=c('DensLive', 'DensDead', 'BALive', 'BADead')))
+
+#Contrasts for s.ha.l and s.ha.d
+sig_results2 <- data.frame(
+  Var=c('DensLive', 'DensDead', 'BADead'),
+  g1 =rep('IM', times=3),
+  g2 =rep('TH', times=3),
+  label=c('**', '***', '***')
+)
+
+#sig and NS contrasts
+all_vars2 <- levels(sh.box2 %>% pull(Var))
+sig_vars2 <- unique(sig_results2$Var)
+ns_vars2 <- setdiff(all_vars2, sig_vars2)
+
+ns.labels2 <- data.frame(Var=factor(ns_vars2, levels=all_vars2))
+
+#Bracket height
+y.max2 <-sh.box2 %>%
+  group_by(Var) %>%
+  summarize(y.top=max(value, na.rm=TRUE))
+
+ns.labels2 <- ns.labels2 %>% #fix NS labels so they don't overlap with data
+  left_join(y.max2, by='Var') %>%
+  mutate(y.position =y.top *1.1)
+
+sig_results2 <- sig_results2 %>%
+  left_join(y.max2, by='Var') %>%
+  group_by(Var) %>%
+  mutate(y.position=y.top + 0.08 *y.top*row_number()) %>%
+  ungroup()
+
+# plots_pivot <- plots %>%
+#   rename(Treatment=TRT, Live=s.ha.l, Dead=s.ha.d) %>%
+#   tidyr::pivot_longer(cols=c(Live, Dead), names_to='Type', values_to='Stems.ha')
+#   
+# ggplot(plots_pivot, aes(x=Treatment, y=Stems.ha, fill=Treatment)) +
+#   geom_boxplot()+
+#   facet_wrap(~Type)
+
+#SFC, BUI, s.ha.l, s.ha.d
+dens.plot <- ggplot(sh.box2, aes(x=TRT, y=value, fill=TRT)) + #pattern=Var
+  geom_boxplot( #geom_boxplot_pattern()
+    na.rm=TRUE,
+    position=position_dodge(width=0.08),
+    width=0.7) +
+  geom_signif(
+    data=sig_results2,
+    aes(xmin=g1, xmax=g2, annotations=label, y_position=y.position),
+    manual=TRUE, tip_length=0.01, textsize=4, inherit.aes=FALSE) +
+  geom_text(data=ns.labels2, 
+            aes(x=-Inf, y=Inf, label='NS'),
+            hjust=-0.3, vjust=1.5, inherit.aes=FALSE) +
+  scale_fill_manual(values=c('green3', 'purple3')) +
+  stat_summary(fun='mean') +
+  facet_wrap(~Var, scale='free_y') + #scales='free_y'
+  labs(fill='Treatment') + #pattern='Variable'
+  theme_bw() +
+  scale_y_continuous(expand=expansion(mult=c(0.05, 0.12))) +
+  theme(legend.position='none') 
+
+#doesn't work yet
+fire.plot
+dens.plot
+
+
+# ggplot(sh.boxplot, aes(x=TRT, fill=TRT)) +
+#  geom_violin(aes(y=s.ha.l)) +
+#  geom_violin(aes(y=s.ha.d))
+
+
 
 ```
 
@@ -708,30 +964,34 @@ greatly increase the effectiveness of hazard reduction treatments.
 
 Conifer forests cover most of the circumboreal region of the world and
 crown fires represent a significant fire-related hazard in these stands
-[@kneeshaw2011; @stocks1991]. Surface fires rarely spread \> 6 m/min
-under closed conifer canopies, as higher spread rates are usually
-associated with canopy fire involvement in the form of torching or
-crowning behaviour [@perrakis2026; @cruz2025]. Once flames reach the
-upper reaches of the canopy, they are much more subject to influence by
-free air in the lower atmosphere. The fully developed crowning process
-has long been known to be associated with a dramatic increase in fire
-spread rate, due to several processes including flame tilt, increased
-lee-side wind exposure and vigorous short-range ember spotting
-[@taylor2004; @alexander2016]. Predicting the initiation of crown fires
-is therefore critical to accurate fire behaviour forecasting in conifer
-forests.
+[@kneeshaw2011; @stocks1991]. While surface fire spread rates are
+generally \< 6 m/min under closed conifer canopy conditions, much higher
+spread rates are associated with canopy fire involvement [@perrakis2026;
+@cruz2025]. Once flames reach the upper reaches of the canopy, they are
+subject to the influence of much faster flowing air currents in the
+lower atmosphere [@zhu2004; @schlegel2015]. The fully developed crowning
+process has long been known to be associated with a dramatic increase in
+fire spread rate and intensity, due to several processes including flame
+tilt, increased lee-side wind exposure and vigorous short-range ember
+spotting [@taylor2004; @alexander2016]. Consequently, crown fires
+exhibit the highest fireline intensity levels of any wildland fire
+[@finney2021] and can spread at \~10 – 70 m min^-1^ in experimental
+fires [@stocks2004; @perrakis2026] and occasionally up to 100 m min^-1^
+or higher in wildfires [@cruz2019]. Predicting the initiation of crown
+fires is therefore critical to accurate fire behaviour forecasting in
+conifer forests.
 
 Stand structure is well-known to influence crown fire tendency. Models
-of crown fire initiation (CFI) or occurrence identify the height to the
-crown base as a critical structure variable; stands with a lower crown
-base, including species such as spruce (*Picea* sp.) or true fir
+of crown fire initiation (CFI) or occurrence identify the live crown
+base height (LCBH) as a critical structure variable: stands with a lower
+crown base, including species such as spruce (*Picea* sp.) or true fir
 (*Abies* sp.), are more easily ignited by an equivalent surface fire
-than higher-crown stands [@vanwagner1977a; @cruz2006; @perrakis2023b].
-While higher crown base stands, such as those of most pines (*Pinus*
-sp.) or coastal Douglas-fir (*Pseudotsuga* *menziesii*) often require
-more extreme weather conditions and higher surface fire intensity for
-canopy ignition, canopy involvement can be facilitated by so-called
-ladder fuels (LF). This term refers to any easily-ignited fuels in the
+than higher-crown stands such as those of mature pine (*Pinus* sp.) or
+coastal Douglas-fir (*Pseudotsuga* *menziesii*) [@vanwagner1977a;
+@cruz2006; @perrakis2023b]. While stands with a higher LCBH require more
+extreme weather conditions and higher surface fire intensity for canopy
+ignition, canopy involvement can be facilitated by so-called ladder
+fuels (LF). This term refers to any easily-ignited fuels in the
 mid-canopy space, meaning fine-textured and flammable dead and live
 biomass above the surface fuel complex but below the live canopy base .
 In Canada, early wildfire researcher J.G. Wright first noted nearly a
@@ -764,22 +1024,28 @@ have combined $I_0$ with Byram's [-@byram1959] fireline intensity
 equation in order to solve for critical rate of spread. This combination
 has allowed for linkages with Rothermel's [-@rothermel1972]
 semi-physical surface rate of spread model [e.g. @scott2001;
-@andrews2014], or with empirical rate of spread (ROS) functions, such as
-in the FBP System [@forestrycanadafiredangergroup1992]. Surprisingly, a
-simple algebraic rearranging of the terms of Van Wagner's model allows
-for a useful and powerful estimator applicable to LF elements at varying
-heights above ground. Empirical data presently allows for calibration of
-the theoretical and conceptual linkages between surface and crown fire
-processes.
+@andrews2014; but see @cruz2010a], or with quasi-empirical crown
+fraction burned and canopy fuel consumption functions, such as in the
+FBP System [@forestrycanadafiredangergroup1992].
+
+Surprisingly, a simple algebraic rearranging of the terms of Van
+Wagner's model allows for a useful and powerful estimator applicable to
+LF elements at varying heights above ground. Empirical data presently
+allows for testing and calibration of the theoretical and conceptual
+linkages between surface and crown fire processes, and will be leveraged
+for these purposes.
 
 ### 1.1 Objective
 
 The objectives of this study were to 1) present a theoretical framework
 for analyzing LF influence in crown fire initiation, as previously
 described in draft form [@perrakis2025b]; and 2) calibrate and evaluate
-the theoretical equation with field data. These goals will allow for
-much greater flexibility for adapting real world stand structure into
-crown fire models and systems.
+the theoretical equations with field data from experimental burns in a
+stand with and without an extensive ladder fuel layer. These findings
+will provide field-tested methods for objectively incorporating ladder
+fuels into empirical crown fire models, allowing for much greater
+flexibility for adapting real world stand structure into crown fire
+prediction systems.
 
 ### 1.2 Theoretical model: vertical scaling of ladder fuel consumption
 
@@ -887,7 +1153,7 @@ A simple approach to the challenge of contrasting aerated ladder fuel
 complexes with dense surface fuel beds is to use a multiplier. This
 quantity would be used on $FC_{SE}$ in order to bring it in line with
 SFC values. We will presently evaluate this approach, with the relevant
-equation being $$$$
+equation being \$\$\$\$
 
 $$
  SFC_L=FC_{se} \cdot M
@@ -928,8 +1194,8 @@ scaling relationship (Eq. 6) and calibrate the multiplier *M*. All three
 methods rely on the valuable experiments and ensuing data collected
 conducted at Sharpsand Creek, Ontario, in the 1970s –1990s, discussed
 below (Sec. 2.1). First, a crown fire weather threshold was identified
-between treatment types, to be used for calibration and evaluation. (1)
-For the first calibration method, an SFC-based surface ROS model was
+between treatment types, to be used for calibration and evaluation. For
+the first calibration method, (1) an SFC-based surface ROS model was
 used to solve for M. (2) The second calibration used additional surface
 fire ROS models were used to calibrate *M*, using Byram's [@byram1959;
 @forestrycanadafiredangergroup1992] intensity equation. (3) Finally, the
@@ -943,59 +1209,57 @@ traditional field sampling techniques [e.g. 10% forest cruise;
 
 ### 2.1 Study area: Sharpsand Creek, Ontario
 
-The results from the experimental fires at Sharpsand Creek, Ontario have
+Results from the 1970s –1990s Sharpsand Creek experimental fires have
 been incorporated into several previous studies but remain highly useful
-for the present analysis. As previously described, 27 plots in three
-separate stand treatment types were burned between 1974 and 1991 at this
-site north of Thessalon, Ontario. Field techniques for experimental
-fires were novel at the time but have since become standard, with line
-ignition on the windward edge of exposed and guarded forest plots
-[@alexander1990]. The original unaltered stand (immature: IM) consisted
-of naturally regenerated jack pine on flat terrain following a 1948
-wildfire, with dense stocking of a single live cohort along with
-abundant standing dead stems forming volatile ladder fuels [@walker1975;
-@stocks1973]. Results from the initial experimental fires (1975-1981)
-were published by Stocks [-@stocks1987] and formed the empirical basis
-for much of the FBP System C-4 fuel type
-[@forestrycanadafiredangergroup1992]. These observations were also
+for the present analysis. As previously described, 27 plots were burned
+in three separate stand treatment types at this site north of Thessalon,
+Ontario [@stocks1987]. Field techniques for experimental fires were
+novel at the time but have since become standard, consisting of line
+ignition on the exposed windward edge of rectangular forest plots, with
+systematic measurement of fuel loading and structure before and after
+burning [@alexander1990]. This present work follows and expands upon the
+reanalysis of original plot-based cruise data for developing crown fire
+models [@perrakis2023b, Supplemental].
+
+The original unaltered stand structure (immature: IM) consisted of a
+dense single cohort of jack pine on flat terrain, naturally regenerated
+following a 1948 wildfire. Abundant standing dead stems formed a
+volatile ladder fuel layer [@walker1975]. Results from the initial
+experimental fires (1975-1981) [-@stocks1987] formed the empirical basis
+for much of the FBP System 'C-4, Immature jack or lodepole pine' fuel
+type [@forestrycanadafiredangergroup1992]. These observations were also
 analyzed separately by Van Wagner [@vanwagner1993] and used in several
 additional fire behaviour studies [@call1997; @albini1986; @cruz1999;
 @cruz2003b].
 
-During the course of the early experiments, it was discovered that 5 or
-6 of the plots had been hand-thinned (TH) in 1960, removing most of the
-dead stems and resulting in much less dense stands compared with the
-'control' IM plots [@stocks1987; B. J. Stocks, personal communication,
-2020]. Thinned stands were measured to have higher DBH than controls
-[@degroot2022]. It is unclear whether thinning resulted in increased
-height or altered LCBH compared with than controls. Any treatment
-differences in LCBH would be small, as experimental leaders did not
-observe it and originally assigned the approximate LCBH value of 4 m to
-all experimental plots, including controls and thinned plots (B.J.
-Stocks, personal communication 2020).
+During the early experiments, it was discovered that 5 or 6 of the plots
+had been hand-thinned (TH) in 1960, resulting in lower stem density
+compared with unthinned controls [@degroot2022]. TH stands otherwise had
+similar LCBH and stand heights as IM plots (B.J. Stocks, personal
+communication, 2020), in line with the known effects of pre-commercial
+thinning on single-aged stands \[#ref Skovsgaard, \]. TH plots appeared
+much less prone to crown fire compared with IM plots, and consequently
+those observations were lumped into the FBP 'C-3' fuel type, along with
+mature pine experimental fires from other sites
+[@forestrycanadafiredangergroup1992].
 
-A second series of experimental fires (1988-1991) was conducted
-approximately a decade later. Stand characteristics and fuel structure
-had measurably changed in years since the earlier experiments,
-reflecting the continuous fuel changes observed during natural post-fire
-succession [@brown2026]. The dense IM plots were initially surveyed at
-\>9000 live stems ha^-1^ and \> 10,000 dead stems ha^-1^ [measured in
-1973; @stocks1987]; when re-surveyed in 1984, self-thinning in so-called
-semi-mature (SM) stands [@mcrae2017] had reduced live and dead stem
-density by 53 % and 63 %, respectively, while total basal area increased
-by 37 % and mean estimated LCBH had increased by about 1.1 m to 5.3 m
-[@mcrae2017].
+A second set of experimental fires was conducted approximately a decade
+later (1988-1991) at the same site. Researchers noted that stand
+characteristics and fuel structure had measurably changed in the decade
+since the 1970s burns, with lower stand density and \~1 m higher LCBH
+comprising pre-burn structure; these were then characterized as
+'semi-mature' stands (SM) [@mcrae2017]. Eight experimental fire
+observations were conducted during this era but were not incorporated
+into the FBP System dataset.
 
-Previous studies handled these three stand types in various ways
-[@perrakis2023b]. While the IM stands were included in the C-4 fuel
-type, the TH plots had been deemed more representative of mature pine
-stand structure and included in the FBP System C-3 fuel type, despite
-similar age, LCBH and site characteristics as the IM stands
-[@degroot2022]. In some subsequent studies, the ladder fuel influence in
-IM stands was estimated by some authors to act similarly to a reduction
-of the LCBH, introducing the Fuel Strata Gap (FSG) concept [@cruz2004a;
-@cruz2006; @perrakis2023b]. These estimated influences were used to help
-calibrate the *M* multiplier.
+Previous studies handled these three stand types (IM, TH, SM) in various
+ways [@perrakis2023b]. Notably, the ladder fuel influence in IM stands
+was estimated by some authors to act similarly to a reduction of the
+LCBH, introducing the Fuel Strata Gap (FSG) concept [@cruz2004a;
+@cruz2006; @perrakis2023b]. Since these adjusted FSG values represent
+subjective estimates, they represent an unknown source of error.
+However, the estimated ladder fuel effects are used in this study help
+estimate the *M* multiplier.
 
 The raw Sharpsand Creek fire data along with descriptions of fire type
 label classes and interpretations can be found in supplemental material.
@@ -1009,13 +1273,13 @@ sometimes estimated indirectly) in experimental studies. Stocks
 tree layer for the original IM experimental fires, and these values are
 used presently for model calibration.
 
-For this analysis, ladder fuel influence was quantified using equation 6
-to scale the estimated ladder fuel consumption (dead canopy fuel \< 1
-cm; Stocks 1987) and derive $FC_{SE}$. The vertical position of fine
-standing ladder fuels was assumed to be the crown centroid of the mean
+Ladder fuel influence was quantified using Eq. 6 to scale the estimated
+ladder fuel consumption (dead canopy fuel \< 1 cm; Stocks 1987) and
+derive $FC_{SE}$. The vertical position of fine standing ladder fuels in
+a dead sapling cohort was assumed to be the crown centroid of the mean
 dead snag canopy layer at the stand level:
 
-$$C_L=CBH_{sap}+\frac {SH_{sap}-CBH_{sap}}{2}$$\[eq. 8\]
+$$C_L=CBH_{LF}+\frac {SH_{sap}-CBH_{sap}}{2}$$\[eq. 8\]
 [@perrakis2023b]; $CBH_{sap}$ and $SH_{sap}$ are the canopy base height
 and stand height of the dead sapling-size tree layer, respectively.
 While the $CBH_{sap}$ was unknown for the standing dead trees at
@@ -1128,15 +1392,45 @@ only in these cases (Layer 1; see Sec. 2.3, below).
 
 The Sharpsand experimental fire dataset consisted of 27 fire
 observations across the three treatments: 14 IM, 5 TH, and 8 SM
-treatments [@perrakis2023b, Supplemental]. The logistic regression tests
-revealed both *ISI* and *ISI~sa~* as significant predictors (*P* \< 0.05
-for both models). Treatment was also significant (*P* = 0.05), although
-post-hoc contrasts showed that the main IM – TH contrast of interest was
-only marginally significant (P \~ 0.1; see Table Sx). Given the small
-sample sizes of the TH treatment (6 fires), it is not surprising to see
-a marginally significant result; in any case, this was only a minor
-concern as these regressions were not used for hypothesis testing but
-rather for identifying the crowning threshold.
+treatments [@perrakis2023b, Supplemental]. Table x shows the stand
+structure of the Sharpsand experimental plots, comparing the three
+different treatments. All three treatments had a similar range of ISI
+values, the main determiner of spread rate according to the FBP System
+and related models [@forestrycanadafiredangergroup1992; @perrakis2026].
+The IM and TH treatments differed primarily in live and dead stem
+density, while their LCBH, BUI, and SFC were otherwise similar.
+
+```{r}
+#table 1
+#mean values and sd for all 3 TRTs
+#currently in Excel as Table 1
+
+```
+
+Since the LCBH, BUI, and SFC of the SM stands was significantly
+different from the other two treatments, these plots were not as useful
+for further calibration and analyses for isolating the ladder fuel
+effects. Consequently, the majority of calculations
+
+The boxplots in Figure xx show some fuel and consumption contrasts
+between IM and TH treatments.
+
+```{r}
+#boxplots
+
+
+
+```
+
+The logistic regression tests revealed both *ISI* and *ISI~sa~* as
+significant predictors (*P* \< 0.05 for both models). Treatment was also
+significant (*P* = 0.05); post-hoc contrasts showed that the main IM-TH
+contrast of interest was only marginally significant (P \~ 0.1; see
+Table Sx). Given the small sample sizes of the TH treatment (6 fires),
+it is not surprising to see a marginally significant result; in any
+case, this was only a minor concern as these regressions were not used
+for hypothesis testing but rather for identifying the fire weather
+thresholds for crown fire occurrence.
 
 ##### 3.1.1 Critical ROS for crowning
 
@@ -1286,22 +1580,21 @@ The third and final estimation method for the multiplier M was based on
 solving eq. 5 using the expert opinion values given in Cruz et al.
 [@cruz2004a; @cruz2005] for the Sharpsand Creek stands. The reasoning
 given was researchers' opinion that the presence of standing dead ladder
-fuels were equivalent to effectively reducing the CBH by 2 m. If this
-assertion is correct, then the mean, measured SFC together with a CBH of
-$z_1=4-2=2$ m produces a similar critical surface fire intensity (again
-using Van Wagner's [@vanwagner1977a] model concept) as $z_2=4$ m, when
-standing dead ladder fuel effects are properly included in the SFC
-portion. Once again, we solve for *M* using Eqs. 5–7.
+fuels were equivalent to effectively reducing the CBH by 2 m. Based on
+the original site-wide estimate of CBH=4 m, then this would mean that
+measured SFC together with a CBH of $z_1=4-2=2$ m produces a similar
+critical surface fire intensity as $z_2=4$ m, when standing dead ladder
+fuel effects are properly included in the SFC portion. This allows us to
+solve for *M* once again using Eqs. 5–7.
 
 Given that the Sharpsand IM and TH stands were otherwise equivalent in
-surface fuel loading and LCBH, we can organize the equivalency in as
-follows to solve for M.
+surface fuel loading and LCBH, we can organize the equivalency as
+follows, starting with Eq. 5:
 
 $$\begin{aligned} SFC_{0,1} &= (\frac {z_2} {z_1})^{1.5} \cdot SFC_{0,2} \\ \frac {SFC_{TH}} {SFC_{IM}+FC_L \cdot M} &= (\frac {z_2} {z_1})^{1.5} \\ M&= \frac {SFC \cdot (z_1-z_2)^{1.5}} {FC_L \cdot z_2^{1.5}} \\ \end{aligned}$$
 
-\[eq. 9\]. Starting with the approximate LCBH values originally
-reported, (*z~1~*= 4 m and *z~2~*=2 m), the following estimate is
-obtained:
+\[eq. 9\]. Using the approximate LCBH values originally reported,
+(*z~1~*= 4 m and *z~2~*=2 m), the following estimate is obtained:
 
 $$\begin{aligned} M &=\frac {1.337 \cdot (4-2)^{1.5}} {0.155 \cdot 2^{1.5}} \\ M&=8.628 \end{aligned}$$The
 same calculation was also completed with more precise values derived
@@ -1309,15 +1602,18 @@ from original stand data and plot-level analysis [@walker1975;
 @perrakis2023b]. This yielded mean LCBH values of 4.36 m across all
 plots. Solving eq. 8 with $z_1=4.36$ and $z_2=2.36$ (following the
 assumption of $FSG=z_2=z_1-2$) produces a slightly lower estimate of
-$M=6.731$.
+$M=6.731$. The difference in calculated *M* values shows the high degree
+of sensitivity of these equations, where small differences in inputs are
+highly consequential.
 
 ##### 3.2.4. Summary of calibrations
 
 Table x shows a summary of M calibration methods and calculations,
 including threshold ROS values. After discarding the lowest and highest
-values, given than the M20 model (lowest) is considered less accurate
-overall [@perrakis2026] and the M13 model includes data from other
-forest types, the mean M value was 7.39. The median value was 7.36.
+values, the mean *M* value was
+`r m.table %>% filter(M> min(M) & M< max(M)) %>% summarize(mean(M)) %>% round(2)`.
+The median value was
+`r m.table %>% filter(M> min(M) & M< max(M)) %>% summarize(median(M)) %>% round(2)`.
 
 In addition varying sROS models, the sensitivity analysis also tested
 crown ratio (CR) by using the the dead ladder fuel midpoint (cohort
@@ -1353,7 +1649,7 @@ Table
 xv.sum2 %>% select(-1, -3) %>% as.data.frame()
 ```
 
-#### Upper canopy crowning
+#### #Delete - Upper canopy crowning
 
 ```{r}
 #Need to bring in Babrauskas, CFC
@@ -1389,6 +1685,16 @@ fd.bimodal <- fd.bimodal0 %>%
 ```
 
 ## Discussion
+
+The boreal pine stands at Sharpsand Creek were naturally regenerated
+following an intense spring wildfire burning in blowdown- and spruce
+budworm (*Choristoneura fumiferana*)-affected older forests
+[@stocks1973]. When experimental burns were conducted 25 years later,
+the regenerating forest structure reflected the rapidly evolving fuelbed
+from natural post-fire succession [@brown2026]. The experimental fires,
+a mix of carefully measured surface and crown fires including the
+valuable thinning and post-fire age differences, provide a valuable
+dataset for examining fuel structure effects.
 
 -This analysis follows the publication of a suite of empirical surface
 fire spread models based on several decades of experimental burning.
@@ -1564,6 +1870,10 @@ in ISI thresholds between IM and TH stands can result in quite different
 critical sROS values depending which model is chosen. The SFC and FC.se
 are also sensitive and quite variable, with significant differences in
 measured values between plots.
+
+\[Do not include: While several assumptions and estimates were required
+to enable these calculations, the multiple methods and lines of evidence
+provide some resilience and degree of confidence for future users. \]
 
 ## References:
 
