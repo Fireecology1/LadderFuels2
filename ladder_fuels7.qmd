@@ -620,7 +620,7 @@ m.table
 
 ```
 
-### \[Table 1 - Sharpsand stand structure and fire differences\]
+### \[Figures - Sharpsand stand structure and fire differences\]
 
 ```{r}
 #test for SFC differences
@@ -641,7 +641,7 @@ sm.fires <- fd %>% filter(num %in% sharp.sm) %>% select(fire, SFC, ISI, BUI)
 #Fire and structure tests
 sh.tests <- fd %>% 
   filter(num %in% c(sharp, sharp.sm, sharp.th)) %>% 
-  select(fire, num, ISI, BUI, SFC) %>%
+  select(fire, num, ISI, BUI, SFC, Fire.type) %>%
   mutate(Plot =c(1, 8:10, 15, 16, 2:7, 11, 11, 12:14, 17, 18, 121, 114:120),
     TRT=case_when(
     num %in% sharp ~ 'IM',
@@ -670,12 +670,19 @@ library(ggsignif)
 sh.box1 <- pivot_longer(sh.tests %>% select(TRT, ISI, BUI, SFC), 
                         cols=-TRT,
                         names_to='Var', values_to='value')  %>%
-  mutate(Var=factor(Var, levels=c('ISI', 'BUI', 'SFC'))) #
+  mutate(Var=factor(Var, levels=c('ISI', 'BUI', 'SFC'), 
+                    ordered=is.ordered(Var))) #
 
-#significance
+box1.labs <- c(
+  ISI = 'ISI',
+  BUI = 'BUI', 
+  SFC = 'SFC~(kg~m^{-2})'
+)
+
+#significance marks on facet graphs
 #Only SFC contrasts are significant
 sig_results <- data.frame(
-  Var=c('SFC', 'SFC'),
+  Var=as.factor(c('SFC', 'SFC')),
   g1 =c('IM', 'TH'),
   g2 =c('SM', 'SM'),
   label=c('***', '***')
@@ -718,21 +725,19 @@ fire.plot <- ggplot(sh.box1, aes(x=TRT, y=value, fill=TRT)) +
   geom_text(data=ns.labels, 
             aes(x=-Inf, y=Inf, label='NS'),
             hjust=-0.3, vjust=1.5, inherit.aes=FALSE) +
-  facet_wrap(~Var, scale='free_y') + 
-  labs(fill='Treatment') + #pattern='Variable'
+  facet_wrap(~Var, scale='free_y', 
+             labeller=as_labeller(box1.labs, label_parsed)) + 
+  labs(x='Treatment') + #pattern='Variable'
   theme_bw() +
   scale_y_continuous(expand=expansion(mult=c(0.05, 0.12))) +
   theme(legend.position='none') 
 
 
-sh.sm.table <- data.frame(s.ha=4375, s.ha.d=3830, dbh.l=8.79, dbh.l.sd=0.5, 
-                    dbh.d=3.6, dbh.d.sd=0.2, SH=12.8, SH.d=5.7, mBUI=54.3,
-                    sdBUI=14.7, CFIs=4, CFIpc=3, CFIac=1)
-
-sh.th.table <- data.frame(s.ha=sh.th %>% summarize(mean(s.ha.l)))
-#table data
-
 #Density boxplot:
+#
+library(ggh4x)
+
+#Set up DF
 sh.model <- bind_rows(sh.ctrl.model, sh.th.model)
 sh.boxplot0 <- left_join(sh.sharma, sh.model, by='Plot') %>%
   slice(-10) %>% #eleminate duplicate p11 here
@@ -771,9 +776,17 @@ sh.box2 <- pivot_longer(sh.tests2 %>% select(TRT, DensLive, DensDead,
          !is.na(value)) %>%
   mutate(Var=factor(Var, levels=c('DensLive', 'DensDead', 'BALive', 'BADead')))
 
+#Box 2 labels
+box2.labs <- c(
+  DensLive='Live~Density~(s~ha^{-1})',
+  DensDead='Dead~Density~(s~ha^{-1})',
+  BALive='Live~Basal~Area~(m^2~ha^{-1})',
+  BADead='Dead~Basal~Area~(m^2~ha^{-1})'
+)
+
 #Contrasts for s.ha.l and s.ha.d
 sig_results2 <- data.frame(
-  Var=c('DensLive', 'DensDead', 'BADead'),
+  Var=as.factor(c('DensLive', 'DensDead', 'BADead')),
   g1 =rep('IM', times=3),
   g2 =rep('TH', times=3),
   label=c('**', '***', '***')
@@ -789,25 +802,22 @@ ns.labels2 <- data.frame(Var=factor(ns_vars2, levels=all_vars2))
 #Bracket height
 y.max2 <-sh.box2 %>%
   group_by(Var) %>%
-  summarize(y.top=max(value, na.rm=TRUE))
+  summarize(y.top=max(value, na.rm=TRUE)) %>%
+  mutate(y.top=if_else(Var=='BADead', 10, y.top))
 
-ns.labels2 <- ns.labels2 %>% #fix NS labels so they don't overlap with data
+ns.labels2b <- ns.labels2 %>% #fix NS labels so they don't overlap with data
   left_join(y.max2, by='Var') %>%
   mutate(y.position =y.top *1.1)
 
-sig_results2 <- sig_results2 %>%
+sig_results2b <- sig_results2 %>%
   left_join(y.max2, by='Var') %>%
   group_by(Var) %>%
-  mutate(y.position=y.top + 0.08 *y.top*row_number()) %>%
+  mutate(y.position=y.top + 0.1 *y.top*row_number()) %>%
   ungroup()
 
-# plots_pivot <- plots %>%
-#   rename(Treatment=TRT, Live=s.ha.l, Dead=s.ha.d) %>%
-#   tidyr::pivot_longer(cols=c(Live, Dead), names_to='Type', values_to='Stems.ha')
-#   
-# ggplot(plots_pivot, aes(x=Treatment, y=Stems.ha, fill=Treatment)) +
-#   geom_boxplot()+
-#   facet_wrap(~Type)
+#common scales for Density, BA
+scale.dens <- scale_y_continuous(limits=c(0, 16000))
+scale.basal <- scale_y_continuous(limits=c(0, 40))
 
 #SFC, BUI, s.ha.l, s.ha.d
 dens.plot <- ggplot(sh.box2, aes(x=TRT, y=value, fill=TRT)) + #pattern=Var
@@ -816,30 +826,50 @@ dens.plot <- ggplot(sh.box2, aes(x=TRT, y=value, fill=TRT)) + #pattern=Var
     position=position_dodge(width=0.08),
     width=0.7) +
   geom_signif(
-    data=sig_results2,
+    data=sig_results2b,
     aes(xmin=g1, xmax=g2, annotations=label, y_position=y.position),
-    manual=TRUE, tip_length=0.01, textsize=4, inherit.aes=FALSE) +
-  geom_text(data=ns.labels2, 
+    manual=TRUE, tip_length=0.04, textsize=4, inherit.aes=FALSE) +
+  geom_text(data=ns.labels2b, 
             aes(x=-Inf, y=Inf, label='NS'),
             hjust=-0.3, vjust=1.5, inherit.aes=FALSE) +
   scale_fill_manual(values=c('green3', 'purple3')) +
   stat_summary(fun='mean') +
-  facet_wrap(~Var, scale='free_y') + #scales='free_y'
-  labs(fill='Treatment') + #pattern='Variable'
+  facet_wrap(~Var, scale='free_y',
+             labeller=as_labeller(box2.labs, label_parsed)) + 
+  facetted_pos_scales(
+    y=list(scale.dens, scale.dens, 
+           scale.basal, scale.basal)
+  ) +
+  labs(x='Treatment') + #pattern='Variable'
   theme_bw() +
   scale_y_continuous(expand=expansion(mult=c(0.05, 0.12))) +
   theme(legend.position='none') 
 
-#doesn't work yet
+#works!
 fire.plot
 dens.plot
 
 
-# ggplot(sh.boxplot, aes(x=TRT, fill=TRT)) +
-#  geom_violin(aes(y=s.ha.l)) +
-#  geom_violin(aes(y=s.ha.d))
+#table data: combine sh.sharma and sh.tests
+sh.sm.table <- data.frame(TRT='SM', s.ha.l=4375, s.ha.d=3830, 
+                          DBH=8.79, DBH.sd=0.5, 
+                    DBH.d=3.6, DBH.d.sd=0.2, BA=28.4, BA.d=4.5, HT=12.8, 
+                    HT.d=5.7, mBUI=54.3, sdBUI=14.7, CFIs=4, CFIpc=3, CFIac=1)
 
+sh.sum.tests <- sh.tests %>% 
+  group_by(TRT) %>% 
+  summarize(ISI=mean(ISI), BUI=mean(BUI), SFC=mean(SFC),
+            nSF=sum(Fire.type=='S'), nPC=sum(Fire.type=='PC'), 
+            nAC=sum(Fire.type=='AC'))
 
+#Table - works, just needs formatting
+sh.all.table <- sh.sharma %>% 
+  mutate(TRT=if_else(TRT=='ctrl', 'IM', 'TH')) %>%
+  group_by(TRT) %>% 
+  summarize(s.ha.l=mean(s.ha.l), s.ha.d=mean(s.ha.d), 
+            BA=mean(BA), BA.d=mean(BA.d)) %>%
+  bind_rows(sh.sm.table) %>% select(TRT:BA.d) %>%
+  left_join(sh.sum.tests, by='TRT')
 
 ```
 
