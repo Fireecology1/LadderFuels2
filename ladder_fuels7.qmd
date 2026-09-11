@@ -443,7 +443,8 @@ sh.isi.log <-
   geom_line(data=fdata.SM, aes(x=fISI, y=CFI, colour='Semi-M')) +
   geom_line(data=fdata.TH, aes(x=fISI, y=CFI, colour='Thin')) +
   scale_colour_manual(values=col.levels, aesthetics=c('colour', 'fill')) +
-  labs(x='ISI', y='p(CFO)', colour='Exp', fill='Exp') +
+  labs(x='ISI', y='p(CFO)', shape='Fire type',
+       colour='Treatment', fill='Treatment') +
   annotate('segment', x=isi.thresh.im, xend=isi.thresh.im, #little vert line, im
            y=0.4, yend=0.6, alpha=0.4, colour='purple3') +
   annotate('segment', x=isi.thresh.th, xend=isi.thresh.th, #vert line, th 
@@ -451,7 +452,8 @@ sh.isi.log <-
   annotate('segment', x=isi.thresh.im-0.75, xend=isi.thresh.im+0.75, 
            y=0.5, yend=0.5, alpha=0.4, colour='purple3') +
   annotate('segment', x=isi.thresh.th-0.75, xend=isi.thresh.th+0.75, 
-           y=0.5, yend=0.5, alpha=0.4, colour='turquoise2')
+           y=0.5, yend=0.5, alpha=0.4, colour='turquoise2')+
+  scale_x_continuous(breaks=c(0, 4, 8, 12, 16, 20))
   
 #sh.isi.log
 
@@ -817,7 +819,7 @@ sig_results2b <- sig_results2 %>%
 
 #common scales for Density, BA
 scale.dens <- scale_y_continuous(limits=c(0, 16000))
-scale.basal <- scale_y_continuous(limits=c(0, 40))
+scale.basal <- scale_y_continuous(limits=c(0, 32))
 
 #SFC, BUI, s.ha.l, s.ha.d
 dens.plot <- ggplot(sh.box2, aes(x=TRT, y=value, fill=TRT)) + #pattern=Var
@@ -870,6 +872,8 @@ sh.all.table <- sh.sharma %>%
             BA=mean(BA), BA.d=mean(BA.d)) %>%
   bind_rows(sh.sm.table) %>% select(TRT:BA.d) %>%
   left_join(sh.sum.tests, by='TRT')
+
+#write.csv(sh.all.table, file='./files/sh_table.csv')
 
 ```
 
